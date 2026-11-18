@@ -165,18 +165,18 @@ namespace BSCustomClevoController.Views
             BatteryChargeStatus status = BatteryControl.GetStatus();
             if (!status.Enabled || status.Mode == BatteryChargeMode.Maximum)
             {
-                LiveLimitStatusText.Text = LocalizationManager.T("BatLimitDisabled");
-                LiveLimitStatusText.Foreground = BrushMutedSlate;
+                this.LiveLimitStatusText.Text = LocalizationManager.T("BatLimitDisabled");
+                this.LiveLimitStatusText.Foreground = BrushMutedSlate;
             }
             else if (status.Mode == BatteryChargeMode.Recommended)
             {
-                LiveLimitStatusText.Text = LocalizationManager.T("BatLimitRecommended");
-                LiveLimitStatusText.Foreground = BrushChargingCyan;
+                this.LiveLimitStatusText.Text = LocalizationManager.T("BatLimitRecommended");
+                this.LiveLimitStatusText.Foreground = BrushChargingCyan;
             }
             else
             {
-                LiveLimitStatusText.Text = LocalizationManager.Format("BatLimitCustomFmt", status.StartThreshold, status.StopThreshold);
-                LiveLimitStatusText.Foreground = BrushChargingCyan;
+                this.LiveLimitStatusText.Text = LocalizationManager.Format("BatLimitCustomFmt", status.StartThreshold, status.StopThreshold);
+                this.LiveLimitStatusText.Foreground = BrushChargingCyan;
             }
         }
 

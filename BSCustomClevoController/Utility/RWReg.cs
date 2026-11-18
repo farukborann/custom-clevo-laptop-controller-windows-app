@@ -175,7 +175,7 @@ namespace BSCustomClevoController.Utility
 		private const string LegacyLanguageRegistryValue = "language";
 
 		// Token: 0x060000DA RID: 218 RVA: 0x00009A98 File Offset: 0x00007C98
-		public string Check_language()
+		public static string Check_language()
 		{
 			string text = Convert.ToString(Registry.GetValue(AppLanguageRegistryKey, AppLanguageRegistryValue, ""));
 			if (string.IsNullOrWhiteSpace(text))

@@ -198,7 +198,7 @@ namespace BSCustomClevoController
                     wakeHandle.Set();
                 }
             }
-            Shutdown();
+            this.Shutdown();
         }
 
         private static void RegisterWakeListener()

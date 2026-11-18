@@ -199,34 +199,34 @@ namespace BSCustomClevoController.Views
 
         private void SyncHardwareSwitchStates()
         {
-            if (PrefWinKeySwitch != null) PrefWinKeySwitch.IsChecked = SystemPreferences.IsWinKeyLocked;
-            if (PrefFnLockSwitch != null) PrefFnLockSwitch.IsChecked = SystemPreferences.IsFnLock;
-            if (PrefTouchpadSwitch != null) PrefTouchpadSwitch.IsChecked = Touchpad.GetTouchpadState();
-            if (PrefCameraSwitch != null) PrefCameraSwitch.IsChecked = SystemPreferences.GetCameraState();
-            if (PrefMicSwitch != null) PrefMicSwitch.IsChecked = SystemPreferences.GetMicrophoneState();
-            if (PrefAirplaneSwitch != null) PrefAirplaneSwitch.IsChecked = SystemPreferences.GetAirplaneModeState();
-            if (PrefCapsSwitch != null) PrefCapsSwitch.IsChecked = SystemPreferences.GetCapsLockState();
-            if (PrefNumSwitch != null) PrefNumSwitch.IsChecked = SystemPreferences.GetNumLockState();
-            if (PrefScrSwitch != null) PrefScrSwitch.IsChecked = SystemPreferences.GetScrollLockState();
+            if (this.PrefWinKeySwitch != null) this.PrefWinKeySwitch.IsChecked = SystemPreferences.IsWinKeyLocked;
+            if (this.PrefFnLockSwitch != null) this.PrefFnLockSwitch.IsChecked = SystemPreferences.IsFnLock;
+            if (this.PrefTouchpadSwitch != null) this.PrefTouchpadSwitch.IsChecked = Touchpad.GetTouchpadState();
+            if (this.PrefCameraSwitch != null) this.PrefCameraSwitch.IsChecked = SystemPreferences.GetCameraState();
+            if (this.PrefMicSwitch != null) this.PrefMicSwitch.IsChecked = SystemPreferences.GetMicrophoneState();
+            if (this.PrefAirplaneSwitch != null) this.PrefAirplaneSwitch.IsChecked = SystemPreferences.GetAirplaneModeState();
+            if (this.PrefCapsSwitch != null) this.PrefCapsSwitch.IsChecked = SystemPreferences.GetCapsLockState();
+            if (this.PrefNumSwitch != null) this.PrefNumSwitch.IsChecked = SystemPreferences.GetNumLockState();
+            if (this.PrefScrSwitch != null) this.PrefScrSwitch.IsChecked = SystemPreferences.GetScrollLockState();
         }
 
         private void SyncSwapWinFnSwitchState()
         {
-            if (PrefSwapWinFnSwitch == null) return;
+            if (this.PrefSwapWinFnSwitch == null) return;
 
             if (!SystemPreferences.IsSwapWinFnSupported)
             {
-                PrefSwapWinFnSwitch.IsEnabled = false;
-                PrefSwapWinFnSwitch.Opacity = 0.35;
-                PrefSwapWinFnSwitch.IsChecked = false;
-                PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.CommonNotSupported");
+                this.PrefSwapWinFnSwitch.IsEnabled = false;
+                this.PrefSwapWinFnSwitch.Opacity = 0.35;
+                this.PrefSwapWinFnSwitch.IsChecked = false;
+                this.PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.CommonNotSupported");
             }
             else
             {
-                PrefSwapWinFnSwitch.IsEnabled = true;
-                PrefSwapWinFnSwitch.Opacity = 1.0;
-                PrefSwapWinFnSwitch.IsChecked = SystemPreferences.IsSwapWinFn;
-                PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.ToolsSwapWinFnDesc");
+                this.PrefSwapWinFnSwitch.IsEnabled = true;
+                this.PrefSwapWinFnSwitch.Opacity = 1.0;
+                this.PrefSwapWinFnSwitch.IsChecked = SystemPreferences.IsSwapWinFn;
+                this.PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.ToolsSwapWinFnDesc");
             }
         }
 

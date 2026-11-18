@@ -1049,13 +1049,13 @@ namespace BSCustomClevoController.Views
         private void RestoreSelectedEffectForAc()
         {
             object regId = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectId", null);
-            if (regId is int idVal && EffectsListBox.ItemsSource is KeyboardEffect[] available)
+            if (regId is int idVal && this.EffectsListBox.ItemsSource is KeyboardEffect[] available)
             {
                 for (int i = 0; i < available.Length; i++)
                 {
                     if (available[i].Id == idVal)
                     {
-                        EffectsListBox.SelectedIndex = i;
+                        this.EffectsListBox.SelectedIndex = i;
                         break;
                     }
                 }
@@ -1064,7 +1064,7 @@ namespace BSCustomClevoController.Views
             object regActive = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
             if (regActive is int a && a == 1)
             {
-                ModeStatus.IsChecked = true;
+                this.ModeStatus.IsChecked = true;
             }
         }
 

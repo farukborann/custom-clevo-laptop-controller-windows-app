@@ -26,7 +26,7 @@ namespace BSCustomClevoController.Utility
 		public RWIni()
 		{
 			this.path = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
-			this.lang = Global.RW_REG.Check_language();
+			this.lang = RWReg.Check_language();
 		}
 
 		// Token: 0x060000C2 RID: 194 RVA: 0x000095F0 File Offset: 0x000077F0
