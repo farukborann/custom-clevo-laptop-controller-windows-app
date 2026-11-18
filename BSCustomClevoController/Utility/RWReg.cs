@@ -174,8 +174,34 @@ namespace BSCustomClevoController.Utility
 		private const string LegacyLanguageRegistryKey = "HKEY_CURRENT_USER\\Software\\ControlCenter3.0\\Fan\\";
 		private const string LegacyLanguageRegistryValue = "language";
 
-		// Token: 0x060000DA RID: 218 RVA: 0x00009A98 File Offset: 0x00007C98
-		public static string Check_language()
+		private static readonly (string Pattern, string Code, int FlexikeyLang)[] LanguageRules =
+		{
+			("es", "es", 1),
+			("de", "de", 1),
+			("it", "it", 1),
+			("ja", "ja", 2),
+			("ko", "ko", 0),
+			("zh-cn", "zh-cn", 0),
+			("zh-tw", "zh-tw", 0),
+			("fr-fr", "fr-fr", 1),
+			("zh-fr", "fr-fr", 1),
+			("fr-ca", "fr-ca", 1),
+			("zh-ca", "fr-ca", 1),
+			("pt-br", "pt-br", 3),
+			("zh-br", "pt-br", 3),
+			("pt-pt", "pt-pt", 1),
+			("zh-pt", "pt-pt", 1),
+			("tr-tr", "tr-tr", 1),
+			("zh-tr", "tr-tr", 1),
+			("th-th", "th-th", 0),
+			("zh-th", "th-th", 0),
+			("vi-vn", "vi-vn", 0),
+			("zh-vn", "vi-vn", 0),
+			("ru", "ru", 1),
+			("id", "id-id", 0)
+		};
+
+		private static string ReadRawLanguageCandidate()
 		{
 			string text = Convert.ToString(Registry.GetValue(AppLanguageRegistryKey, AppLanguageRegistryValue, ""));
 			if (string.IsNullOrWhiteSpace(text))
@@ -186,175 +212,37 @@ namespace BSCustomClevoController.Utility
 			{
 				string uiCulture = CultureInfo.CurrentUICulture.Name;
 				text = string.IsNullOrWhiteSpace(uiCulture)
-					? CultureInfo.CurrentCulture.Name.ToLowerInvariant()
-					: uiCulture.ToLowerInvariant();
+					? CultureInfo.CurrentCulture.Name
+					: uiCulture;
 			}
-			text = text.Trim().ToLowerInvariant();
-			bool flag2 = text.Contains("en");
-			if (flag2)
+			return text.Trim().ToLowerInvariant();
+		}
+
+		// Token: 0x060000DA RID: 218 RVA: 0x00009A98 File Offset: 0x00007C98
+		public static string Check_language()
+		{
+			string text = ReadRawLanguageCandidate();
+			if (text.Contains("en"))
 			{
-				bool flag3 = text == DefaultLanguageCode;
-				if (flag3)
-				{
-					Global.Flexikey_LED_Language = 0;
-				}
-				else
-				{
-					Global.Flexikey_LED_Language = 1;
-				}
+				Global.Flexikey_LED_Language = text == DefaultLanguageCode ? 0 : 1;
 				text = DefaultLanguageCode;
 			}
 			else
 			{
-				bool flag4 = text.Contains("es");
-				if (flag4)
+				int ruleIndex = Array.FindIndex(LanguageRules, rule => text.Contains(rule.Pattern));
+				if (ruleIndex >= 0)
 				{
-					text = "es";
-					Global.Flexikey_LED_Language = 1;
+					text = LanguageRules[ruleIndex].Code;
+					Global.Flexikey_LED_Language = LanguageRules[ruleIndex].FlexikeyLang;
 				}
 				else
 				{
-					bool flag5 = text.Contains("de");
-					if (flag5)
+					if (!LocalizationManager.TryResolveLanguagePackPath(text, out string customPackPath) ||
+						!System.IO.File.Exists(customPackPath))
 					{
-						text = "de";
-						Global.Flexikey_LED_Language = 1;
+						text = DefaultLanguageCode;
 					}
-					else
-					{
-						bool flag6 = text.Contains("it");
-						if (flag6)
-						{
-							text = "it";
-							Global.Flexikey_LED_Language = 1;
-						}
-						else
-						{
-							bool flag7 = text.Contains("ja");
-							if (flag7)
-							{
-								text = "ja";
-								Global.Flexikey_LED_Language = 2;
-							}
-							else
-							{
-								bool flag8 = text.Contains("ko");
-								if (flag8)
-								{
-									text = "ko";
-									Global.Flexikey_LED_Language = 0;
-								}
-								else
-								{
-									bool flag9 = text.Contains("zh-cn");
-									if (flag9)
-									{
-										text = "zh-cn";
-										Global.Flexikey_LED_Language = 0;
-									}
-									else
-									{
-										bool flag10 = text.Contains("zh-tw");
-										if (flag10)
-										{
-											text = "zh-tw";
-											Global.Flexikey_LED_Language = 0;
-										}
-										else
-										{
-											bool flag11 = text.Contains("fr-fr") || text.Contains("zh-fr");
-											if (flag11)
-											{
-												text = "fr-fr";
-												Global.Flexikey_LED_Language = 1;
-											}
-											else
-											{
-												bool flag12 = text.Contains("fr-ca") || text.Contains("zh-ca");
-												if (flag12)
-												{
-													text = "fr-ca";
-													Global.Flexikey_LED_Language = 1;
-												}
-												else
-												{
-													bool flag13 = text.Contains("pt-br") || text.Contains("zh-br");
-													if (flag13)
-													{
-														text = "pt-br";
-														Global.Flexikey_LED_Language = 3;
-													}
-													else
-													{
-														bool flag14 = text.Contains("pt-pt") || text.Contains("zh-pt");
-														if (flag14)
-														{
-															text = "pt-pt";
-															Global.Flexikey_LED_Language = 1;
-														}
-														else
-														{
-															bool flag15 = text.Contains("tr-tr") || text.Contains("zh-tr");
-															if (flag15)
-															{
-																text = "tr-tr";
-																Global.Flexikey_LED_Language = 1;
-															}
-															else
-															{
-																bool flag16 = text.Contains("th-th") || text.Contains("zh-th");
-																if (flag16)
-																{
-																	text = "th-th";
-																	Global.Flexikey_LED_Language = 0;
-																}
-																else
-																{
-																	bool flag17 = text.Contains("vi-vn") || text.Contains("zh-vn");
-																	if (flag17)
-																	{
-																		text = "vi-vn";
-																		Global.Flexikey_LED_Language = 0;
-																	}
-																	else
-																	{
-																		bool flag18 = text.Contains("ru");
-																		if (flag18)
-																		{
-																			text = "ru";
-																			Global.Flexikey_LED_Language = 1;
-																		}
-																		else
-																		{
-																			bool flag19 = text.Contains("id");
-																			if (flag19)
-																			{
-																				text = "id-id";
-																				Global.Flexikey_LED_Language = 0;
-																			}
-																			else
-																			{
-																				if (!LocalizationManager.TryResolveLanguagePackPath(text, out string customPackPath) ||
-																					!System.IO.File.Exists(customPackPath))
-																				{
-																					text = DefaultLanguageCode;
-																				}
-																				Global.Flexikey_LED_Language = 0;
-																			}
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
+					Global.Flexikey_LED_Language = 0;
 				}
 			}
 			WriteLanguage(text);
