@@ -12,7 +12,7 @@ namespace BSCustomClevoController.Utility
     public static partial class SystemPreferences
     {
         [StructLayout(LayoutKind.Sequential)]
-        private struct ACPI_HSA_WAIT_EVENT
+        private struct AcpiHsaWaitEvent
         {
             public IntPtr HsaEvent;
         }
@@ -33,7 +33,7 @@ namespace BSCustomClevoController.Utility
         private static extern bool DeviceIoControlWaitEvent(
             IntPtr hDevice,
             uint dwIoControlCode,
-            ref ACPI_HSA_WAIT_EVENT inBuffer,
+            ref AcpiHsaWaitEvent inBuffer,
             int inBufferSize,
             byte[] outBuffer,
             uint outBufferSize,
@@ -80,7 +80,6 @@ namespace BSCustomClevoController.Utility
         private static bool? _lastCameraState;
         private static bool? _lastMicState;
         private static bool? _lastAcState;
-        private static Fan.Mode? _lastHardwareFanMode;
         private static byte[] _lastEcKeyboardState = new byte[16];
 
         private static readonly object _ecPollLock = new object();
@@ -96,11 +95,6 @@ namespace BSCustomClevoController.Utility
         private static EventLog _outLogWatcher;
         private static ManagementEventWatcher _clevoEventWatcher;
         private static Timer _hardwareStatePollTimer;
-
-        internal static void UpdateHardwareFanModeCache(Fan.Mode mode)
-        {
-            _lastHardwareFanMode = mode;
-        }
 
         public static void SetAcpiEventListening(bool enable)
         {
@@ -313,8 +307,6 @@ namespace BSCustomClevoController.Utility
             const uint FILE_SHARE_READ = 0x00000001;
             const uint FILE_SHARE_WRITE = 0x00000002;
             const uint OPEN_EXISTING = 3;
-            const uint IOCTL_ACPIBIOS_WAIT_EVENT = 3286020u;
-            const uint IOCTL_ACPIBIOS_GET_NOTIFY_VALUE = 3286024u;
 
             while (_hsaRunning)
             {
@@ -333,47 +325,53 @@ namespace BSCustomClevoController.Utility
                     Thread.Sleep(100);
                     continue;
                 }
-                try
-                {
-                    SetAcpiEventListening(true);
-                    ACPI_HSA_WAIT_EVENT waitStruct = new ACPI_HSA_WAIT_EVENT { HsaEvent = hsaEvent };
-                    byte[] waitOutBuf = new byte[256];
-                    uint returned = 0;
-                    ResetEvent(hsaEvent);
-                    DeviceIoControlWaitEvent(hDevice, IOCTL_ACPIBIOS_WAIT_EVENT, ref waitStruct, Marshal.SizeOf(typeof(ACPI_HSA_WAIT_EVENT)), waitOutBuf, 256u, ref returned, IntPtr.Zero);
 
-                    while (_hsaRunning)
+                ListenHsaDeviceEvents(hDevice, hsaEvent);
+            }
+        }
+
+        private static void ListenHsaDeviceEvents(IntPtr hDevice, IntPtr hsaEvent)
+        {
+            const uint IOCTL_ACPIBIOS_WAIT_EVENT = 3286020u;
+            const uint IOCTL_ACPIBIOS_GET_NOTIFY_VALUE = 3286024u;
+
+            try
+            {
+                SetAcpiEventListening(true);
+                AcpiHsaWaitEvent waitStruct = new AcpiHsaWaitEvent { HsaEvent = hsaEvent };
+                byte[] waitOutBuf = new byte[256];
+                uint returned = 0;
+                ResetEvent(hsaEvent);
+                DeviceIoControlWaitEvent(hDevice, IOCTL_ACPIBIOS_WAIT_EVENT, ref waitStruct, Marshal.SizeOf(typeof(AcpiHsaWaitEvent)), waitOutBuf, 256u, ref returned, IntPtr.Zero);
+
+                while (_hsaRunning)
+                {
+                    uint waitResult = WaitForSingleObject(hsaEvent, 80);
+                    if (waitResult != 0)
                     {
-                        uint waitResult = WaitForSingleObject(hsaEvent, 80);
-                        if (waitResult == 0)
-                        {
-                            ResetEvent(hsaEvent);
-                            long notifyValue = 0;
-                            if (DeviceIoControlGetNotify(hDevice, IOCTL_ACPIBIOS_GET_NOTIFY_VALUE, IntPtr.Zero, 0, ref notifyValue, 8, ref returned, IntPtr.Zero))
-                            {
-                                if (notifyValue != 0)
-                                {
-                                    HandleAcpiEvent((int)notifyValue);
-                                    ClearEcHotkeyByte();
-                                    DeviceIoControlWaitEvent(hDevice, IOCTL_ACPIBIOS_WAIT_EVENT, ref waitStruct, Marshal.SizeOf(typeof(ACPI_HSA_WAIT_EVENT)), waitOutBuf, 256u, ref returned, IntPtr.Zero);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            PollEcHotkeysAndFanState();
-                        }
+                        PollEcHotkeysAndFanState();
+                        continue;
+                    }
+
+                    ResetEvent(hsaEvent);
+                    long notifyValue = 0;
+                    if (DeviceIoControlGetNotify(hDevice, IOCTL_ACPIBIOS_GET_NOTIFY_VALUE, IntPtr.Zero, 0, ref notifyValue, 8, ref returned, IntPtr.Zero)
+                        && notifyValue != 0)
+                    {
+                        HandleAcpiEvent((int)notifyValue);
+                        ClearEcHotkeyByte();
+                        DeviceIoControlWaitEvent(hDevice, IOCTL_ACPIBIOS_WAIT_EVENT, ref waitStruct, Marshal.SizeOf(typeof(AcpiHsaWaitEvent)), waitOutBuf, 256u, ref returned, IntPtr.Zero);
                     }
                 }
-                catch (Exception ex)
-                {
-                    AppLogger.Log("SystemPreferences.HsaListenerWorker", ex);
-                }
-                finally
-                {
-                    CloseHandle(hsaEvent);
-                    CloseHandle(hDevice);
-                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("SystemPreferences.HsaListenerWorker", ex);
+            }
+            finally
+            {
+                CloseHandle(hsaEvent);
+                CloseHandle(hDevice);
             }
         }
 
@@ -440,8 +438,7 @@ namespace BSCustomClevoController.Utility
             _lastCameraState = GetCameraState();
             _lastMicState = GetMicrophoneState();
             _lastAcState = NativeMethods.IsAcLineOnline(defaultIfUnknown: false);
-            _lastHardwareFanMode = Fan.GetHardwareFanMode();
-            _hardwareStatePollTimer = new Timer(PollHardwareStates, null, 500, 400);
+            _hardwareStatePollTimer = new Timer(_ => PollHardwareStates(), null, 500, 400);
 
             try
             {
@@ -500,9 +497,9 @@ namespace BSCustomClevoController.Utility
             }
         }
 
-        private static void PollHardwareStates(object state)
+        private static void PollHardwareStates()
         {
-            if (_pollStopping || Interlocked.CompareExchange(ref _pollInFlight, 1, 0) != 0)
+            if (Interlocked.CompareExchange(ref _pollInFlight, 1, 0) != 0)
             {
                 return;
             }
@@ -514,108 +511,56 @@ namespace BSCustomClevoController.Utility
                 }
                 bool hardwareChanged = false;
 
-                bool currentAirplane = GetAirplaneModeState();
-                if (!_lastAirplaneState.HasValue)
-                {
-                    _lastAirplaneState = currentAirplane;
-                }
-                else if (_lastAirplaneState.Value != currentAirplane)
-                {
-                    _lastAirplaneState = currentAirplane;
-                    hardwareChanged = true;
-                    if (!MonotonicClock.IsBefore(_suppressAirplaneOsdUntilTicks))
+                hardwareChanged |= PollBooleanTransition(
+                    ref _lastAirplaneState,
+                    GetAirplaneModeState(),
+                    val =>
                     {
-                        OsdOverlay.ShowAirplane(currentAirplane);
-                    }
-                }
+                        if (!MonotonicClock.IsBefore(_suppressAirplaneOsdUntilTicks))
+                        {
+                            OsdOverlay.ShowAirplane(val);
+                        }
+                    });
 
-                bool currentMic = GetMicrophoneState();
-                if (!_lastMicState.HasValue)
-                {
-                    _lastMicState = currentMic;
-                }
-                else if (_lastMicState.Value != currentMic)
-                {
-                    _lastMicState = currentMic;
-                    hardwareChanged = true;
-                    if (!MonotonicClock.IsBefore(_suppressMicOsdUntilTicks))
+                hardwareChanged |= PollBooleanTransition(
+                    ref _lastMicState,
+                    GetMicrophoneState(),
+                    val =>
                     {
-                        OsdOverlay.ShowMicrophone(currentMic);
-                    }
-                }
+                        if (!MonotonicClock.IsBefore(_suppressMicOsdUntilTicks))
+                        {
+                            OsdOverlay.ShowMicrophone(val);
+                        }
+                    });
 
-                bool currentCamera = GetCameraState();
-                if (!_lastCameraState.HasValue)
-                {
-                    _lastCameraState = currentCamera;
-                }
-                else if (_lastCameraState.Value != currentCamera)
-                {
-                    _lastCameraState = currentCamera;
-                    hardwareChanged = true;
-                    if (!MonotonicClock.IsBefore(_suppressCameraOsdUntilTicks))
+                hardwareChanged |= PollBooleanTransition(
+                    ref _lastCameraState,
+                    GetCameraState(),
+                    val =>
                     {
-                        OsdOverlay.ShowCamera(currentCamera);
-                    }
-                }
+                        if (!MonotonicClock.IsBefore(_suppressCameraOsdUntilTicks))
+                        {
+                            OsdOverlay.ShowCamera(val);
+                        }
+                    });
 
-                bool currentTouchpad = Touchpad.GetTouchpadState();
-                if (!_lastTouchpadState.HasValue)
-                {
-                    _lastTouchpadState = currentTouchpad;
-                }
-                else if (_lastTouchpadState.Value != currentTouchpad)
-                {
-                    _lastTouchpadState = currentTouchpad;
-                    Touchpad.NotifyExternalState(currentTouchpad);
-                    hardwareChanged = true;
-                }
+                hardwareChanged |= PollBooleanTransition(
+                    ref _lastTouchpadState,
+                    Touchpad.GetTouchpadState(),
+                    Touchpad.NotifyExternalState);
 
-                bool currentCaps = GetCapsLockState();
-                if (!_lastCapsState.HasValue)
-                {
-                    _lastCapsState = currentCaps;
-                }
-                else if (_lastCapsState.Value != currentCaps)
-                {
-                    _lastCapsState = currentCaps;
-                    hardwareChanged = true;
-                }
+                hardwareChanged |= PollBooleanTransition(ref _lastCapsState, GetCapsLockState());
+                hardwareChanged |= PollBooleanTransition(ref _lastNumState, GetNumLockState());
+                hardwareChanged |= PollBooleanTransition(ref _lastScrollState, GetScrollLockState());
 
-                bool currentNum = GetNumLockState();
-                if (!_lastNumState.HasValue)
-                {
-                    _lastNumState = currentNum;
-                }
-                else if (_lastNumState.Value != currentNum)
-                {
-                    _lastNumState = currentNum;
-                    hardwareChanged = true;
-                }
-
-                bool currentScroll = GetScrollLockState();
-                if (!_lastScrollState.HasValue)
-                {
-                    _lastScrollState = currentScroll;
-                }
-                else if (_lastScrollState.Value != currentScroll)
-                {
-                    _lastScrollState = currentScroll;
-                    hardwareChanged = true;
-                }
-
-                bool currentAc = NativeMethods.IsAcLineOnline(defaultIfUnknown: false);
-                if (!_lastAcState.HasValue)
-                {
-                    _lastAcState = currentAc;
-                }
-                else if (_lastAcState.Value != currentAc)
-                {
-                    _lastAcState = currentAc;
-                    KeyboardEffects.HandlePowerStatusChanged(currentAc);
-                    PowerLineChanged?.Invoke(currentAc);
-                    hardwareChanged = true;
-                }
+                hardwareChanged |= PollBooleanTransition(
+                    ref _lastAcState,
+                    NativeMethods.IsAcLineOnline(defaultIfUnknown: false),
+                    ac =>
+                    {
+                        KeyboardEffects.HandlePowerStatusChanged(ac);
+                        PowerLineChanged?.Invoke(ac);
+                    });
 
                 if (hardwareChanged)
                 {
@@ -632,30 +577,110 @@ namespace BSCustomClevoController.Utility
             }
         }
 
+        private static bool PollBooleanTransition(ref bool? lastState, bool current, Action<bool> onChanged = null)
+        {
+            if (!lastState.HasValue)
+            {
+                lastState = current;
+                return false;
+            }
+            if (lastState.Value == current)
+            {
+                return false;
+            }
+            lastState = current;
+            onChanged?.Invoke(current);
+            return true;
+        }
+
         private static void HandleAcpiEvent(int rawEventCode)
+        {
+            if (!ShouldProcessAcpiEvent(rawEventCode))
+            {
+                return;
+            }
+
+            if (TryHandleCameraAndMicAcpiEvent(rawEventCode))
+            {
+                return;
+            }
+
+            DispatchGeneralAcpiEvent(rawEventCode);
+        }
+
+        private static bool ShouldProcessAcpiEvent(int rawEventCode)
         {
             if (rawEventCode <= 0)
             {
-                return;
+                return false;
             }
             bool isKnownMultiByte = rawEventCode == 259 || rawEventCode == 303 || rawEventCode == 304 ||
                                     rawEventCode == 24600 || rawEventCode == 24700 || rawEventCode == 24900;
             if (rawEventCode > 0xFF && !isKnownMultiByte)
             {
-                return;
+                return false;
             }
-            int eventCode = rawEventCode;
 
             lock (_acpiEventLock)
             {
-                if (eventCode == _lastAcpiEventCode && MonotonicClock.ElapsedMs(_lastAcpiEventTicks) < 250.0)
+                if (rawEventCode == _lastAcpiEventCode && MonotonicClock.ElapsedMs(_lastAcpiEventTicks) < 250.0)
                 {
-                    return;
+                    return false;
                 }
-                _lastAcpiEventCode = eventCode;
+                _lastAcpiEventCode = rawEventCode;
                 _lastAcpiEventTicks = MonotonicClock.NowTicks();
             }
+            return true;
+        }
 
+        private static bool TryHandleCameraAndMicAcpiEvent(int eventCode)
+        {
+            switch (eventCode)
+            {
+                case 38:
+                    ToggleMicrophone();
+                    return true;
+                case 132:
+                    ToggleCamera();
+                    return true;
+                case 246:
+                case 24600:
+                    SetCameraOsdState(enabled: false, includeMic: false);
+                    return true;
+                case 248:
+                    SetCameraOsdState(enabled: false, includeMic: true);
+                    return true;
+                case 247:
+                case 24700:
+                case 24900:
+                    SetCameraOsdState(enabled: true, includeMic: false);
+                    return true;
+                case 249:
+                    SetCameraOsdState(enabled: true, includeMic: true);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static void SetCameraOsdState(bool enabled, bool includeMic)
+        {
+            _lastCameraState = enabled;
+            _suppressCameraOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
+            SetCameraHardwareState(enabled);
+            if (includeMic)
+            {
+                SetMicrophoneState(enabled);
+                OsdOverlay.ShowCameraMic(enabled);
+            }
+            else
+            {
+                OsdOverlay.ShowCamera(enabled);
+            }
+        }
+
+        private static void DispatchGeneralAcpiEvent(int eventCode)
+        {
             switch (eventCode)
             {
                 case 37:
@@ -663,9 +688,6 @@ namespace BSCustomClevoController.Utility
                     {
                         ToggleFnLockFromEC();
                     }
-                    break;
-                case 38:
-                    ToggleMicrophone();
                     break;
                 case 58:
                     Fan.ToggleAutoMaxFan();
@@ -716,23 +738,11 @@ namespace BSCustomClevoController.Utility
                     break;
                 case 32:
                 case 129:
-                    {
-                        int? step = KeyboardBackLight.DecreaseBrightness();
-                        if (step.HasValue)
-                        {
-                            OsdOverlay.ShowBacklight(step.Value);
-                        }
-                    }
+                    ShowBacklightStep(KeyboardBackLight.DecreaseBrightness());
                     break;
                 case 33:
                 case 130:
-                    {
-                        int? step = KeyboardBackLight.IncreaseBrightness();
-                        if (step.HasValue)
-                        {
-                            OsdOverlay.ShowBacklight(step.Value);
-                        }
-                    }
+                    ShowBacklightStep(KeyboardBackLight.IncreaseBrightness());
                     break;
                 case 63:
                 case 158:
@@ -740,50 +750,28 @@ namespace BSCustomClevoController.Utility
                     OsdOverlay.ShowBacklightToggle(KeyboardBackLight.ToggleBacklight());
                     break;
                 case 131:
-                    {
-                        var preset = KeyboardBackLight.CycleColorPreset();
-                        if (preset.HasValue)
-                        {
-                            OsdOverlay.ShowBacklightColor(preset.Value.Name);
-                        }
-                    }
-                    break;
-                case 132:
-                    ToggleCamera();
-                    break;
-                case 246:
-                case 24600:
-                    _lastCameraState = false;
-                    _suppressCameraOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
-                    SetCameraHardwareState(false);
-                    OsdOverlay.ShowCamera(false);
-                    break;
-                case 248:
-                    _lastCameraState = false;
-                    _suppressCameraOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
-                    SetCameraHardwareState(false);
-                    SetMicrophoneState(false);
-                    OsdOverlay.ShowCameraMic(false);
-                    break;
-                case 247:
-                case 24700:
-                case 24900:
-                    _lastCameraState = true;
-                    _suppressCameraOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
-                    SetCameraHardwareState(true);
-                    OsdOverlay.ShowCamera(true);
-                    break;
-                case 249:
-                    _lastCameraState = true;
-                    _suppressCameraOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
-                    SetCameraHardwareState(true);
-                    SetMicrophoneState(true);
-                    OsdOverlay.ShowCameraMic(true);
+                    ShowBacklightPreset(KeyboardBackLight.CycleColorPreset());
                     break;
                 case 303:
                 case 304:
                     ShowMainWindowRequested?.Invoke();
                     break;
+            }
+        }
+
+        private static void ShowBacklightStep(int? step)
+        {
+            if (step.HasValue)
+            {
+                OsdOverlay.ShowBacklight(step.Value);
+            }
+        }
+
+        private static void ShowBacklightPreset(KeyboardBackLight.ColorPresetItem? preset)
+        {
+            if (preset.HasValue)
+            {
+                OsdOverlay.ShowBacklightColor(preset.Value.Name);
             }
         }
     }

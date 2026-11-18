@@ -119,99 +119,119 @@ namespace BSCustomClevoController.Utility
 
         private static IntPtr HookProcedure(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (nCode >= 0)
+            const int LLKHF_INJECTED = 0x10;
+            if (nCode < 0)
             {
-                var hookStruct = (NativeMethods.KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(NativeMethods.KBDLLHOOKSTRUCT));
-
-                // Ignore synthetic keys to prevent hook recursion and self-blocking
-                const int LLKHF_INJECTED = 0x10;
-                if ((hookStruct.flags & LLKHF_INJECTED) != 0)
-                {
-                    return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
-                }
-
-                int msg = (int)wParam;
-                bool isKeyDown = (msg == NativeMethods.WM_KEYDOWN || msg == NativeMethods.WM_SYSKEYDOWN);
-                bool isKeyUp = (msg == NativeMethods.WM_KEYUP || msg == NativeMethods.WM_SYSKEYUP);
-                uint vk = hookStruct.vkCode;
-
-                if (_isWinKeyLocked && (vk == NativeMethods.VK_LWIN || vk == NativeMethods.VK_RWIN))
-                {
-                    if (isKeyDown && OsdOverlay.IsEnabled && MonotonicClock.ElapsedMs(_lastWinKeyOsdTicks) >= 500.0)
-                    {
-                        _lastWinKeyOsdTicks = MonotonicClock.NowTicks();
-                        OsdOverlay.ShowWinKeyLock(true);
-                    }
-                    return (IntPtr)1;
-                }
-
-                if (vk == NativeMethods.VK_F24)
-                {
-                    _lastHardwareTouchpadKeyTicks = MonotonicClock.NowTicks();
-                }
-
-                if (OsdOverlay.IsEnabled && isKeyUp)
-                {
-                    if (vk == NativeMethods.VK_CAPITAL)
-                    {
-                        OsdOverlay.ShowCaps(GetCapsLockState());
-                    }
-                    else if (vk == NativeMethods.VK_NUMLOCK)
-                    {
-                        OsdOverlay.ShowNum(GetNumLockState());
-                    }
-                    else if (vk == NativeMethods.VK_SCROLL)
-                    {
-                        OsdOverlay.ShowScroll(GetScrollLockState());
-                    }
-                    else if (vk == VK_AIRPLANE)
-                    {
-                        Task.Delay(120).ContinueWith(_ =>
-                        {
-                            bool airState = GetAirplaneModeState();
-                            _lastAirplaneState = airState;
-                            _suppressAirplaneOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
-                            OsdOverlay.ShowAirplane(airState);
-                        });
-                    }
-                    else if (vk == NativeMethods.VK_F24)
-                    {
-                        Task.Delay(120).ContinueWith(_ =>
-                        {
-                            bool state = Touchpad.SyncFromPrecisionTouchpad();
-                            OsdOverlay.ShowTouchpad(state);
-                        });
-                    }
-                }
-
-                if (_isFnLock && _lastEcKeyboardState[0] == 0 && IsFnKey(vk))
-                {
-                    // Allow OS shortcuts (Alt+F4, Ctrl+F5, Shift+F10, Win+F1) through normally
-                    bool ctrlDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
-                    bool shiftDown = (NativeMethods.GetAsyncKeyState(0x10) & 0x8000) != 0;
-                    bool altDown = (hookStruct.flags & 0x20) != 0 || (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
-                    bool winDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
-                                || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0;
-                    if (ctrlDown || altDown || shiftDown || winDown)
-                    {
-                        return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
-                    }
-
-                    if (isKeyDown)
-                    {
-                        if (HandleFnAction(vk))
-                        {
-                            _handledFnKeys.Add(vk);
-                            return (IntPtr)1;
-                        }
-                    }
-                    else if (isKeyUp && _handledFnKeys.Remove(vk))
-                    {
-                        return (IntPtr)1;
-                    }
-                }
+                return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
             }
+
+            var hookStruct = (NativeMethods.KbdllHookStruct)Marshal.PtrToStructure(lParam, typeof(NativeMethods.KbdllHookStruct));
+            // Ignore synthetic keys to prevent hook recursion and self-blocking
+            if ((hookStruct.flags & LLKHF_INJECTED) != 0)
+            {
+                return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
+            }
+
+            int msg = (int)wParam;
+            bool isKeyDown = msg == NativeMethods.WM_KEYDOWN || msg == NativeMethods.WM_SYSKEYDOWN;
+            bool isKeyUp = msg == NativeMethods.WM_KEYUP || msg == NativeMethods.WM_SYSKEYUP;
+            uint vk = hookStruct.vkCode;
+
+            if (ShouldSwallowWinKeyLock(vk, isKeyDown))
+            {
+                return (IntPtr)1;
+            }
+
+            if (vk == NativeMethods.VK_F24)
+            {
+                _lastHardwareTouchpadKeyTicks = MonotonicClock.NowTicks();
+            }
+
+            if (OsdOverlay.IsEnabled && isKeyUp)
+            {
+                DispatchKeyUpOsd(vk);
+            }
+
+            if (TrySwallowFnLockHotkey(vk, isKeyDown, isKeyUp, hookStruct.flags))
+            {
+                return (IntPtr)1;
+            }
+
             return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
+        }
+
+        private static bool ShouldSwallowWinKeyLock(uint vk, bool isKeyDown)
+        {
+            if (!_isWinKeyLocked || (vk != NativeMethods.VK_LWIN && vk != NativeMethods.VK_RWIN))
+            {
+                return false;
+            }
+
+            if (isKeyDown && OsdOverlay.IsEnabled && MonotonicClock.ElapsedMs(_lastWinKeyOsdTicks) >= 500.0)
+            {
+                _lastWinKeyOsdTicks = MonotonicClock.NowTicks();
+                OsdOverlay.ShowWinKeyLock(true);
+            }
+            return true;
+        }
+
+        private static void DispatchKeyUpOsd(uint vk)
+        {
+            switch (vk)
+            {
+                case NativeMethods.VK_CAPITAL:
+                    OsdOverlay.ShowCaps(GetCapsLockState());
+                    break;
+                case NativeMethods.VK_NUMLOCK:
+                    OsdOverlay.ShowNum(GetNumLockState());
+                    break;
+                case NativeMethods.VK_SCROLL:
+                    OsdOverlay.ShowScroll(GetScrollLockState());
+                    break;
+                case VK_AIRPLANE:
+                    Task.Delay(120).ContinueWith(_ =>
+                    {
+                        bool airState = GetAirplaneModeState();
+                        _lastAirplaneState = airState;
+                        _suppressAirplaneOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
+                        OsdOverlay.ShowAirplane(airState);
+                    });
+                    break;
+                case NativeMethods.VK_F24:
+                    Task.Delay(120).ContinueWith(_ =>
+                    {
+                        bool state = Touchpad.SyncFromPrecisionTouchpad();
+                        OsdOverlay.ShowTouchpad(state);
+                    });
+                    break;
+            }
+        }
+
+        private static bool TrySwallowFnLockHotkey(uint vk, bool isKeyDown, bool isKeyUp, uint hookFlags)
+        {
+            if (!_isFnLock || _lastEcKeyboardState[0] != 0 || !IsFnKey(vk) || HasActiveModifierKeys(hookFlags))
+            {
+                return false;
+            }
+
+            if (isKeyDown && HandleFnAction(vk))
+            {
+                _handledFnKeys.Add(vk);
+                return true;
+            }
+
+            return isKeyUp && _handledFnKeys.Remove(vk);
+        }
+
+        private static bool HasActiveModifierKeys(uint hookFlags)
+        {
+            // Allow OS shortcuts (Alt+F4, Ctrl+F5, Shift+F10, Win+F1) through normally
+            bool ctrlDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
+            bool shiftDown = (NativeMethods.GetAsyncKeyState(0x10) & 0x8000) != 0;
+            bool altDown = (hookFlags & 0x20) != 0 || (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+            bool winDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
+                        || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0;
+            return ctrlDown || altDown || shiftDown || winDown;
         }
 
         private static void QueueHookAction(string name, Action action)

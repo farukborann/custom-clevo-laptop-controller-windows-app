@@ -12,6 +12,7 @@ namespace BSCustomClevoController.Utility
         private const string RunRegistryKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "CustomClevoController";
         private const string TaskName = "CustomClevoControllerStartup";
+        private const string SchtasksExe = "schtasks.exe";
 
         public static string GetExecutablePath()
         {
@@ -26,8 +27,9 @@ namespace BSCustomClevoController.Utility
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Log("StartupManager.GetExecutablePath.MainModule", ex);
             }
 
             try
@@ -38,8 +40,9 @@ namespace BSCustomClevoController.Utility
                     return Path.GetFullPath(path);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Log("StartupManager.GetExecutablePath.AssemblyLocation", ex);
             }
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
@@ -291,7 +294,7 @@ namespace BSCustomClevoController.Utility
                 }
 
                 return ProcessRunner.Run(
-                    ProcessRunner.ResolveSystemTool("schtasks.exe"),
+                    ProcessRunner.ResolveSystemTool(SchtasksExe),
                     string.Format("/create /f /tn \"{0}\" /xml \"{1}\"", TaskName, tempFile),
                     5000,
                     out _) == 0;
@@ -315,7 +318,7 @@ namespace BSCustomClevoController.Utility
             try
             {
                 string args = string.Format("/create /f /tn \"{0}\" /sc onlogon /rl highest /tr \"\\\"{1}\\\" /minimized\"", TaskName, exePath);
-                return ProcessRunner.Run(ProcessRunner.ResolveSystemTool("schtasks.exe"), args, 5000, out _) == 0;
+                return ProcessRunner.Run(ProcessRunner.ResolveSystemTool(SchtasksExe), args, 5000, out _) == 0;
             }
             catch (Exception ex)
             {
@@ -342,7 +345,7 @@ namespace BSCustomClevoController.Utility
             return RegisterTaskViaCli(exePath);
         }
 
-        private static bool RemoveStartupTask()
+        private static void RemoveStartupTask()
         {
             try
             {
@@ -350,12 +353,12 @@ namespace BSCustomClevoController.Utility
                 if (rootFolder != null)
                 {
                     rootFolder.DeleteTask(TaskName, 0);
-                    return true;
+                    return;
                 }
             }
             catch (Exception ex) when (IsTaskNotFoundException(ex))
             {
-                return true;
+                return;
             }
             catch (Exception ex)
             {
@@ -364,12 +367,11 @@ namespace BSCustomClevoController.Utility
 
             try
             {
-                return ProcessRunner.Run(ProcessRunner.ResolveSystemTool("schtasks.exe"), string.Format("/delete /f /tn \"{0}\"", TaskName), 5000, out _) == 0;
+                ProcessRunner.Run(ProcessRunner.ResolveSystemTool(SchtasksExe), string.Format("/delete /f /tn \"{0}\"", TaskName), 5000, out _);
             }
             catch (Exception ex)
             {
                 AppLogger.Log("StartupManager.RemoveStartupTaskCli", ex);
-                return false;
             }
         }
 
@@ -395,7 +397,7 @@ namespace BSCustomClevoController.Utility
 
             try
             {
-                return ProcessRunner.Run(ProcessRunner.ResolveSystemTool("schtasks.exe"), string.Format("/query /tn \"{0}\"", TaskName), 5000, out _) == 0;
+                return ProcessRunner.Run(ProcessRunner.ResolveSystemTool(SchtasksExe), string.Format("/query /tn \"{0}\"", TaskName), 5000, out _) == 0;
             }
             catch (Exception ex)
             {

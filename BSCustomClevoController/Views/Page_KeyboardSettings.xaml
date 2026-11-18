@@ -266,28 +266,28 @@
                                     <TextBlock Text="HEX" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextMuted}" Margin="2,0,0,3" />
                                     <TextBox x:Name="HexColorInput" Text="#0078D7" MaxLength="7" Style="{StaticResource AmoledTextBoxStyle}"
                                              Padding="8,5" FontSize="12" TextAlignment="Center"
-                                             KeyDown="ColorInput_KeyDown" LostFocus="HexColorInput_LostFocus" TextChanged="HexColorInput_TextChanged" />
+                                             KeyDown="ColorInput_KeyDown" LostFocus="ColorInput_LostFocus" TextChanged="HexColorInput_TextChanged" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="3">
                                     <TextBlock Text="R" FontSize="10" FontWeight="SemiBold" Foreground="#EF4444" Margin="2,0,0,3" />
                                     <TextBox x:Name="RColorInput" Text="0" MaxLength="3" Style="{StaticResource AmoledTextBoxStyle}"
                                              Padding="4,5" FontSize="12" TextAlignment="Center"
-                                             KeyDown="ColorInput_KeyDown" LostFocus="RgbColorInput_LostFocus" TextChanged="RgbColorInput_TextChanged" />
+                                             KeyDown="ColorInput_KeyDown" LostFocus="ColorInput_LostFocus" TextChanged="RgbColorInput_TextChanged" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="5">
                                     <TextBlock Text="G" FontSize="10" FontWeight="SemiBold" Foreground="#10B981" Margin="2,0,0,3" />
                                     <TextBox x:Name="GColorInput" Text="120" MaxLength="3" Style="{StaticResource AmoledTextBoxStyle}"
                                              Padding="4,5" FontSize="12" TextAlignment="Center"
-                                             KeyDown="ColorInput_KeyDown" LostFocus="RgbColorInput_LostFocus" TextChanged="RgbColorInput_TextChanged" />
+                                             KeyDown="ColorInput_KeyDown" LostFocus="ColorInput_LostFocus" TextChanged="RgbColorInput_TextChanged" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="7">
                                     <TextBlock Text="B" FontSize="10" FontWeight="SemiBold" Foreground="#3B82F6" Margin="2,0,0,3" />
                                     <TextBox x:Name="BColorInput" Text="215" MaxLength="3" Style="{StaticResource AmoledTextBoxStyle}"
                                              Padding="4,5" FontSize="12" TextAlignment="Center"
-                                             KeyDown="ColorInput_KeyDown" LostFocus="RgbColorInput_LostFocus" TextChanged="RgbColorInput_TextChanged" />
+                                             KeyDown="ColorInput_KeyDown" LostFocus="ColorInput_LostFocus" TextChanged="RgbColorInput_TextChanged" />
                                 </StackPanel>
                             </Grid>
                         </Grid>

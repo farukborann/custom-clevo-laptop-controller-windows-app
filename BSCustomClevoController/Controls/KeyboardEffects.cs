@@ -9,35 +9,37 @@ namespace BSCustomClevoController.Controls
     {
         private const string AppRegistryKey = @"HKEY_CURRENT_USER\Software\BSCustomClevoController";
 
-        public static int Duration = 1000;
+        private static int _duration = 1000;
+        public static int Duration => Volatile.Read(ref _duration);
+        public static void SetDuration(int durationMs) => Volatile.Write(ref _duration, durationMs);
 
-        public static KeyboardEffect Breath = new KeyboardEffect() { Name = "Breath", UniqId = 16, Id = 2, IteAnimMode = 0x02 };
-        public static KeyboardEffect Cycle = new KeyboardEffect() { Name = "Cycle", UniqId = 51, Id = 3 };
-        public static KeyboardEffect Wave = new KeyboardEffect() { Name = "Wave", UniqId = 176, Id = 4, IteAnimMode = 0x03, IteBehaviour = 0x01 };
-        public static KeyboardEffect Dance = new KeyboardEffect() { Name = "Dance", UniqId = 128, Id = 5 };
-        public static KeyboardEffect Tempo = new KeyboardEffect() { Name = "Tempo", UniqId = 144, Id = 6 };
-        public static KeyboardEffect Flash = new KeyboardEffect() { Name = "Flash", UniqId = 160, Id = 7 };
+        public static readonly KeyboardEffect Breath = new KeyboardEffect() { Name = "Breath", UniqId = 16, Id = 2, IteAnimMode = 0x02 };
+        public static readonly KeyboardEffect Cycle = new KeyboardEffect() { Name = "Cycle", UniqId = 51, Id = 3 };
+        public static readonly KeyboardEffect Wave = new KeyboardEffect() { Name = "Wave", UniqId = 176, Id = 4, IteAnimMode = 0x03, IteBehaviour = 0x01 };
+        public static readonly KeyboardEffect Dance = new KeyboardEffect() { Name = "Dance", UniqId = 128, Id = 5 };
+        public static readonly KeyboardEffect Tempo = new KeyboardEffect() { Name = "Tempo", UniqId = 144, Id = 6 };
+        public static readonly KeyboardEffect Flash = new KeyboardEffect() { Name = "Flash", UniqId = 160, Id = 7 };
 
         // ITE 8291 multi-directional wave (tuxedo-drivers ite_8291.c)
-        public static KeyboardEffect WaveLeftRight = new KeyboardEffect() { Name = "Wave: Left to Right", UniqId = 176, Id = 4, IteAnimMode = 0x03, IteBehaviour = 0x01 };
-        public static KeyboardEffect WaveRightLeft = new KeyboardEffect() { Name = "Wave: Right to Left", UniqId = 176, Id = 11, IteAnimMode = 0x03, IteBehaviour = 0x02 };
-        public static KeyboardEffect WaveBottomTop = new KeyboardEffect() { Name = "Wave: Bottom to Top", UniqId = 176, Id = 12, IteAnimMode = 0x03, IteBehaviour = 0x03 };
-        public static KeyboardEffect WaveTopBottom = new KeyboardEffect() { Name = "Wave: Top to Bottom", UniqId = 176, Id = 13, IteAnimMode = 0x03, IteBehaviour = 0x04 };
+        public static readonly KeyboardEffect WaveLeftRight = new KeyboardEffect() { Name = "Wave: Left to Right", UniqId = 176, Id = 4, IteAnimMode = 0x03, IteBehaviour = 0x01 };
+        public static readonly KeyboardEffect WaveRightLeft = new KeyboardEffect() { Name = "Wave: Right to Left", UniqId = 176, Id = 11, IteAnimMode = 0x03, IteBehaviour = 0x02 };
+        public static readonly KeyboardEffect WaveBottomTop = new KeyboardEffect() { Name = "Wave: Bottom to Top", UniqId = 176, Id = 12, IteAnimMode = 0x03, IteBehaviour = 0x03 };
+        public static readonly KeyboardEffect WaveTopBottom = new KeyboardEffect() { Name = "Wave: Top to Bottom", UniqId = 176, Id = 13, IteAnimMode = 0x03, IteBehaviour = 0x04 };
 
         // ITE 8291 interactive and hardware engine modes
-        public static KeyboardEffect Reactive = new KeyboardEffect() { Name = "Reactive (Key Press)", UniqId = 0, Id = 14, IteAnimMode = 0x04, IteBehaviour = 0x00 };
-        public static KeyboardEffect Ripple = new KeyboardEffect() { Name = "Ripple (Key Waves)", UniqId = 0, Id = 15, IteAnimMode = 0x06, IteBehaviour = 0x00 };
-        public static KeyboardEffect Rainbow = new KeyboardEffect() { Name = "Rainbow Wave", UniqId = 51, Id = 16, IteAnimMode = 0x05, IteBehaviour = 0x00 };
-        public static KeyboardEffect Marquee = new KeyboardEffect() { Name = "Marquee", UniqId = 128, Id = 17, IteAnimMode = 0x09, IteBehaviour = 0x00 };
-        public static KeyboardEffect Raindrop = new KeyboardEffect() { Name = "Raindrop", UniqId = 112, Id = 18, IteAnimMode = 0x0A, IteBehaviour = 0x00 };
-        public static KeyboardEffect Aurora = new KeyboardEffect() { Name = "Aurora", UniqId = 144, Id = 19, IteAnimMode = 0x0E, IteBehaviour = 0x00 };
-        public static KeyboardEffect Spark = new KeyboardEffect() { Name = "Spark", UniqId = 160, Id = 20, IteAnimMode = 0x11, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Reactive = new KeyboardEffect() { Name = "Reactive (Key Press)", UniqId = 0, Id = 14, IteAnimMode = 0x04, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Ripple = new KeyboardEffect() { Name = "Ripple (Key Waves)", UniqId = 0, Id = 15, IteAnimMode = 0x06, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Rainbow = new KeyboardEffect() { Name = "Rainbow Wave", UniqId = 51, Id = 16, IteAnimMode = 0x05, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Marquee = new KeyboardEffect() { Name = "Marquee", UniqId = 128, Id = 17, IteAnimMode = 0x09, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Raindrop = new KeyboardEffect() { Name = "Raindrop", UniqId = 112, Id = 18, IteAnimMode = 0x0A, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Aurora = new KeyboardEffect() { Name = "Aurora", UniqId = 144, Id = 19, IteAnimMode = 0x0E, IteBehaviour = 0x00 };
+        public static readonly KeyboardEffect Spark = new KeyboardEffect() { Name = "Spark", UniqId = 160, Id = 20, IteAnimMode = 0x11, IteBehaviour = 0x00 };
 
-        public static KeyboardEffect SoftwareBreath = new KeyboardEffect() { Name = "Breath", UniqId = 0, Id = 8, Func = BreathEffect, Milliseconds = 25 };
-        public static KeyboardEffect SoftwareCycle = new KeyboardEffect() { Name = "Cycle", UniqId = 0, Id = 9, Func = CycleEffect, Milliseconds = 25 };
-        public static KeyboardEffect SoftwareBreathColor = new KeyboardEffect() { Name = "Colorful Breath", UniqId = 0, Id = 10, Func = ColorfulBreathEffect, Milliseconds = 25 };
+        public static readonly KeyboardEffect SoftwareBreath = new KeyboardEffect() { Name = "Breath", UniqId = 0, Id = 8, Func = BreathEffect, Milliseconds = 25 };
+        public static readonly KeyboardEffect SoftwareCycle = new KeyboardEffect() { Name = "Cycle", UniqId = 0, Id = 9, Func = CycleEffect, Milliseconds = 25 };
+        public static readonly KeyboardEffect SoftwareBreathColor = new KeyboardEffect() { Name = "Colorful Breath", UniqId = 0, Id = 10, Func = ColorfulBreathEffect, Milliseconds = 25 };
 
-        public static KeyboardEffect[] Effects = new KeyboardEffect[]
+        public static readonly KeyboardEffect[] Effects = new KeyboardEffect[]
         {
             Breath, Cycle, Wave, Dance, Tempo, Flash,
             WaveLeftRight, WaveRightLeft, WaveBottomTop, WaveTopBottom,
@@ -134,7 +136,7 @@ namespace BSCustomClevoController.Controls
             {
                 KeyboardBackLight.TurnOn();
                 byte bri = status.BackLight.A > 0 ? status.BackLight.A : (byte)255;
-                MaxBrightness = bri;
+                SetMaxBrightness(bri);
                 KeyboardBackLight.ApplyCurrentStaticColorsRealtime();
                 KeyboardBackLight.SetBrightnessRealtime(bri);
             }
@@ -175,71 +177,83 @@ namespace BSCustomClevoController.Controls
             {
                 if (!isAcOnline)
                 {
-                    if (IsAnySoftwareEffectActive())
-                    {
-                        KeyboardEffect runningEffect = KeyboardEffect.FindSoftwareEffect();
-                        if (runningEffect == null)
-                        {
-                            object regId = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectId", null);
-                            if (regId is int idVal)
-                            {
-                                runningEffect = KeyboardEffect.LookUpEffectById(idVal);
-                            }
-                        }
-
-                        if (runningEffect != null && runningEffect.IsSoftware)
-                        {
-                            SavedBatterySoftwareEffect = runningEffect;
-                        }
-
-                        KeyboardEffect.StopAllSoftwareEffects();
-                        RestoreStaticLightingAndSleepTimer();
-                    }
+                    PauseSoftwareEffectsForBattery();
                 }
                 else
                 {
-                    KeyboardEffect effectToResume = SavedBatterySoftwareEffect;
-                    SavedBatterySoftwareEffect = null;
-
-                    if (effectToResume == null)
-                    {
-                        object regActive = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
-                        object regLight = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbLightState", null);
-                        bool lightOn = !(regLight is int l && l == 0);
-
-                        if (regActive is int a && a == 1 && lightOn)
-                        {
-                            object regId = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectId", null);
-                            object regUniq = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectUniqId", null);
-                            object regName = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectName", null);
-
-                            if (regId is int idVal)
-                            {
-                                byte uniqVal = regUniq is int u ? (byte)u : (byte)0;
-                                string nameVal = regName as string;
-                                KeyboardEffect savedEffect = KeyboardEffect.LookUpEffect(idVal, uniqVal, nameVal);
-                                if (savedEffect != null && savedEffect.IsSoftware)
-                                {
-                                    effectToResume = savedEffect;
-                                }
-                            }
-                        }
-                    }
-
-                    if (effectToResume != null && effectToResume.IsSoftware)
-                    {
-                        KeyboardBackLight.TurnSleepTimerOff(updateRegistry: false);
-                        UiDispatcher.Post(() =>
-                        {
-                            effectToResume.SetEffect();
-                        });
-                    }
+                    ResumeSoftwareEffectsOnAc();
                 }
             }
             catch (Exception ex)
             {
                 AppLogger.Log("KeyboardEffects.HandlePowerStatusChanged", ex);
             }
+        }
+
+        private static void PauseSoftwareEffectsForBattery()
+        {
+            if (!IsAnySoftwareEffectActive())
+            {
+                return;
+            }
+
+            KeyboardEffect runningEffect = KeyboardEffect.FindSoftwareEffect();
+            if (runningEffect == null)
+            {
+                object regId = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectId", null);
+                if (regId is int idVal)
+                {
+                    runningEffect = KeyboardEffect.LookUpEffectById(idVal);
+                }
+            }
+
+            if (runningEffect != null && runningEffect.IsSoftware)
+            {
+                SavedBatterySoftwareEffect = runningEffect;
+            }
+
+            KeyboardEffect.StopAllSoftwareEffects();
+            RestoreStaticLightingAndSleepTimer();
+        }
+
+        private static void ResumeSoftwareEffectsOnAc()
+        {
+            KeyboardEffect effectToResume = SavedBatterySoftwareEffect;
+            SavedBatterySoftwareEffect = null;
+
+            if (effectToResume == null)
+            {
+                effectToResume = LoadSavedSoftwareEffectFromRegistry();
+            }
+
+            if (effectToResume != null && effectToResume.IsSoftware)
+            {
+                KeyboardBackLight.TurnSleepTimerOff(updateRegistry: false);
+                UiDispatcher.Post(() => effectToResume.SetEffect());
+            }
+        }
+
+        private static KeyboardEffect LoadSavedSoftwareEffectFromRegistry()
+        {
+            object regActive = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
+            object regLight = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbLightState", null);
+            bool lightOn = !(regLight is int l && l == 0);
+            if (!(regActive is int a && a == 1 && lightOn))
+            {
+                return null;
+            }
+
+            object regId = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectId", null);
+            if (!(regId is int idVal))
+            {
+                return null;
+            }
+
+            object regUniq = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectUniqId", null);
+            object regName = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "KbEffectName", null);
+            byte uniqVal = regUniq is int u ? (byte)u : (byte)0;
+            KeyboardEffect savedEffect = KeyboardEffect.LookUpEffect(idVal, uniqVal, regName as string);
+            return savedEffect != null && savedEffect.IsSoftware ? savedEffect : null;
         }
 
         private static readonly Color[] RainbowColors = new Color[]
@@ -252,7 +266,10 @@ namespace BSCustomClevoController.Controls
             Color.FromArgb(255, 0, 255)
         };
 
-        public static volatile byte MaxBrightness = 255;
+        private static int _maxBrightness = 255;
+        public static byte MaxBrightness => (byte)Volatile.Read(ref _maxBrightness);
+        public static void SetMaxBrightness(byte value) => Volatile.Write(ref _maxBrightness, value);
+
         private static int _breathColorIndex = -1;
         private static long _transitionStartTicks = MonotonicClock.NowTicks();
         private static int _lastBrightness = -1;
@@ -283,122 +300,6 @@ namespace BSCustomClevoController.Controls
             Volatile.Write(ref _liveColorIndex, 0);
             Interlocked.Exchange(ref _livePhaseBits, BitConverter.DoubleToInt64Bits(0.5));
             Interlocked.Exchange(ref _liveWrittenTicks, now);
-        }
-
-        public static bool TryComputeEffectColor(
-            int effectId,
-            int durationMs,
-            double elapsedMs,
-            byte staticR,
-            byte staticG,
-            byte staticB,
-            byte maxBrightness,
-            out byte r,
-            out byte g,
-            out byte b,
-            out byte brightness)
-        {
-            r = staticR;
-            g = staticG;
-            b = staticB;
-            brightness = maxBrightness;
-
-            double safeElapsed = Math.Max(0.0, elapsedMs);
-            if (effectId == 2 || effectId == 8) // Breath / Software Breath
-            {
-                double cycleDuration = Math.Max(200.0, durationMs * 2.0);
-                double phase = (safeElapsed % cycleDuration) / cycleDuration;
-                brightness = ScaleBreathBrightness(phase, maxBrightness);
-                return true;
-            }
-
-            if (effectId == 10) // Colorful Breath
-            {
-                double cycleDuration = Math.Max(200.0, durationMs * 2.0);
-                int colorIdx = (int)(safeElapsed / cycleDuration) % RainbowColors.Length;
-                Color c = RainbowColors[colorIdx];
-                r = c.R;
-                g = c.G;
-                b = c.B;
-                double phase = (safeElapsed % cycleDuration) / cycleDuration;
-                brightness = ScaleBreathBrightness(phase, maxBrightness);
-                return true;
-            }
-
-            if (effectId == 3 || effectId == 9 || effectId == 4 || effectId == 11 || effectId == 12 || effectId == 13 || effectId == 16)
-            {
-                double stepDuration = Math.Max(100.0, durationMs);
-                double totalCycle = stepDuration * RainbowColors.Length;
-                double cycleElapsed = safeElapsed % totalCycle;
-                int fromIndex = (int)(cycleElapsed / stepDuration) % RainbowColors.Length;
-                int toIndex = (fromIndex + 1) % RainbowColors.Length;
-                float t = (float)((cycleElapsed % stepDuration) / stepDuration);
-                Color c = InterpolateColor(RainbowColors[fromIndex], RainbowColors[toIndex], t);
-                r = c.R;
-                g = c.G;
-                b = c.B;
-                brightness = maxBrightness;
-                return true;
-            }
-
-            return false;
-        }
-
-        public static bool TryGetLiveSample(
-            byte staticR,
-            byte staticG,
-            byte staticB,
-            out int effectId,
-            out byte r,
-            out byte g,
-            out byte b,
-            out byte brightness,
-            out double elapsedMs)
-        {
-            KeyboardEffect running = KeyboardEffect.FindSoftwareEffect();
-            if (running != null)
-            {
-                effectId = running.Id;
-                elapsedMs = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks));
-                return TryComputeEffectColor(effectId, Volatile.Read(ref Duration), elapsedMs, staticR, staticG, staticB, MaxBrightness, out r, out g, out b, out brightness);
-            }
-
-            effectId = 0;
-            r = staticR;
-            g = staticG;
-            b = staticB;
-            brightness = MaxBrightness;
-            elapsedMs = 0.0;
-            return false;
-        }
-
-        public static bool TryGetLiveBreathState(int expectedEffectId, out int colorIndex, out double phase)
-        {
-            KeyboardEffect running = KeyboardEffect.FindSoftwareEffect();
-            if (running != null && running.Id == expectedEffectId && (expectedEffectId == 8 || expectedEffectId == 10))
-            {
-                if (Volatile.Read(ref _liveEffectId) == expectedEffectId)
-                {
-                    double cycleDuration = Math.Max(200.0, Volatile.Read(ref Duration) * 2.0);
-                    double committedPhase = BitConverter.Int64BitsToDouble(Interlocked.Read(ref _livePhaseBits));
-                    int committedColor = Volatile.Read(ref _liveColorIndex);
-                    double sinceWriteMs = Math.Max(0.0, MonotonicClock.ElapsedMs(Interlocked.Read(ref _liveWrittenTicks)));
-
-                    // Smoothly bridge between hardware WMI writes without crossing 0% ahead of physical LEDs.
-                    double advanced = committedPhase + Math.Min(sinceWriteMs, 35.0) / cycleDuration;
-                    phase = (committedPhase >= 0.5 && advanced >= 1.0) ? 0.996 : Math.Min(1.0, advanced);
-                    colorIndex = expectedEffectId == 10 ? committedColor : 0;
-                    return true;
-                }
-
-                colorIndex = 0;
-                phase = 0.5;
-                return true;
-            }
-
-            colorIndex = 0;
-            phase = 0.5;
-            return false;
         }
 
         private static byte ScaleBreathBrightness(double phase, byte maxBrightness)
@@ -443,7 +344,7 @@ namespace BSCustomClevoController.Controls
 
         public static void BreathEffect(object sender, EventArgs e)
         {
-            double cycleDuration = Math.Max(200.0, Volatile.Read(ref Duration) * 2.0);
+            double cycleDuration = Math.Max(200.0, Duration * 2.0);
             double elapsed = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks));
             byte targetBrightness = ComputeBreathBrightness(elapsed, cycleDuration, out double phase);
 
@@ -457,7 +358,7 @@ namespace BSCustomClevoController.Controls
 
         public static void ColorfulBreathEffect(object sender, EventArgs e)
         {
-            double cycleDuration = Math.Max(200.0, Volatile.Read(ref Duration) * 2.0);
+            double cycleDuration = Math.Max(200.0, Duration * 2.0);
             double elapsed = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks));
             double shifted = elapsed + cycleDuration * 0.5;
             int colorIdx = (int)(shifted / cycleDuration) % RainbowColors.Length;
@@ -499,7 +400,7 @@ namespace BSCustomClevoController.Controls
 
         public static void CycleEffect(object sender, EventArgs e)
         {
-            double stepDuration = Math.Max(100.0, Volatile.Read(ref Duration));
+            double stepDuration = Math.Max(100.0, Duration);
             double totalCycle = stepDuration * RainbowColors.Length;
             double elapsed = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks)) % totalCycle;
 

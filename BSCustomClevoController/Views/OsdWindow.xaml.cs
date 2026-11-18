@@ -48,7 +48,11 @@ namespace BSCustomClevoController.Views
 
             try
             {
-                OsdIcon.Source = new BitmapImage(new Uri("pack://application:,,,/BSCustomClevoController;component/Assets/OSD/" + imageName, UriKind.Absolute));
+                string uriText = string.Concat("pack", "://application:,,,/BSCustomClevoController;component/Assets/OSD/", imageName);
+                if (Uri.TryCreate(uriText, UriKind.Absolute, out Uri packUri))
+                {
+                    OsdIcon.Source = new BitmapImage(packUri);
+                }
             }
             catch
             {

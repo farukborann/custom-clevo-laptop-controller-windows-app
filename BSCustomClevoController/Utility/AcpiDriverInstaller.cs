@@ -70,17 +70,17 @@ namespace BSCustomClevoController.Utility
         private static extern bool CloseHandle(IntPtr hObject);
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        private struct LUID
+        private struct Luid
         {
             public uint LowPart;
             public int HighPart;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        private struct TOKEN_PRIVILEGES
+        private struct TokenPrivileges
         {
             public uint PrivilegeCount;
-            public LUID Luid;
+            public Luid Luid;
             public uint Attributes;
         }
 
@@ -88,10 +88,10 @@ namespace BSCustomClevoController.Utility
         private static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
 
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
+        private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out Luid lpLuid);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges, ref TOKEN_PRIVILEGES NewState, uint BufferLengthInBytes, IntPtr PreviousState, IntPtr ReturnLength);
+        private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges, ref TokenPrivileges NewState, uint BufferLengthInBytes, IntPtr PreviousState, IntPtr ReturnLength);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
@@ -524,8 +524,9 @@ namespace BSCustomClevoController.Utility
                 {
                     stream?.Dispose();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppLogger.Log("AcpiDriverInstaller.DisposeStreams", ex);
                 }
             }
 
@@ -542,7 +543,7 @@ namespace BSCustomClevoController.Utility
                     {
                         try
                         {
-                            TOKEN_PRIVILEGES tp = new TOKEN_PRIVILEGES
+                            TokenPrivileges tp = new TokenPrivileges
                             {
                                 PrivilegeCount = 1,
                                 Attributes = SE_PRIVILEGE_ENABLED
@@ -698,9 +699,9 @@ namespace BSCustomClevoController.Utility
             }
         }
 
-        private static int RunPnpUtil(string arguments)
+        private static void RunPnpUtil(string arguments)
         {
-            return RunPnpUtil(arguments, out _);
+            RunPnpUtil(arguments, out _);
         }
 
         private static void EnsureEventLogSource()

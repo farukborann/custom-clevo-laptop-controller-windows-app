@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Microsoft.Win32;
 
@@ -22,12 +23,14 @@ namespace BSCustomClevoController.Utility
 
     public static class LocalizationManager
     {
+        private const string DefaultLanguageCode = "en-us";
+
         public static event Action LanguageChanged;
         public static event Action<IReadOnlyDictionary<string, string>> StringsApplied;
 
         private static readonly (string Code, string DefaultName)[] BuiltInOrder =
         {
-            ("en-us", "English"),
+            (DefaultLanguageCode, "English"),
             ("id-id", "Bahasa Indonesia"),
             ("es", "Español"),
             ("de", "Deutsch"),
@@ -93,7 +96,7 @@ namespace BSCustomClevoController.Utility
             }
         }
 
-        public static string CurrentLanguage { get; private set; } = "en-us";
+        public static string CurrentLanguage { get; private set; } = DefaultLanguageCode;
 
         public static string LocalizationFolder
         {
@@ -240,9 +243,11 @@ namespace BSCustomClevoController.Utility
                 }
                 catch (CultureNotFoundException)
                 {
+                    // Unknown culture code; fall back to the resolved CurrentCulture.
                 }
                 catch (ArgumentException)
                 {
+                    // Invalid culture name syntax; fall back to the resolved CurrentCulture.
                 }
 
                 _cachedCultureCode = code;
@@ -284,27 +289,7 @@ namespace BSCustomClevoController.Utility
 
         private static void ReloadAvailableLanguages()
         {
-            string folder = LocalizationFolder;
-            var discovered = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            try
-            {
-                if (Directory.Exists(folder))
-                {
-                    foreach (string filePath in Directory.GetFiles(folder, "*.ini"))
-                    {
-                        string code = Path.GetFileNameWithoutExtension(filePath)?.Trim().ToLowerInvariant();
-                        if (!IsValidLanguageCode(code)) continue;
-
-                        string displayName = ReadDisplayName(filePath) ?? code;
-                        discovered[code] = displayName;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Log("LocalizationManager.ReloadAvailableLanguages", ex);
-            }
+            Dictionary<string, string> discovered = DiscoverLanguageDisplayNames(LocalizationFolder);
 
             var ordered = new List<LanguageOption>();
             var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -318,27 +303,20 @@ namespace BSCustomClevoController.Utility
                 added.Add(builtIn.Code);
             }
 
-            var extras = new List<LanguageOption>();
-            foreach (var kvp in discovered)
-            {
-                if (!added.Contains(kvp.Key))
-                {
-                    extras.Add(new LanguageOption(kvp.Key, kvp.Value));
-                }
-            }
+            List<LanguageOption> extras = discovered
+                .Where(kvp => !added.Contains(kvp.Key))
+                .Select(kvp => new LanguageOption(kvp.Key, kvp.Value))
+                .ToList();
             extras.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.CurrentCultureIgnoreCase));
             ordered.AddRange(extras);
 
-            Dictionary<string, string> enBase = TryResolveLanguagePackPath("en-us", out string enPath)
+            Dictionary<string, string> enBase = TryResolveLanguagePackPath(DefaultLanguageCode, out string enPath)
                 ? LoadIniDictionary(enPath)
                 : new Dictionary<string, string>(StringComparer.Ordinal);
             var mergedBase = new Dictionary<string, string>(EmergencyFallback, StringComparer.Ordinal);
-            foreach (var kvp in enBase)
+            foreach (var kvp in enBase.Where(kvp => !string.Equals(kvp.Key, "_Name", StringComparison.Ordinal)))
             {
-                if (!string.Equals(kvp.Key, "_Name", StringComparison.Ordinal))
-                {
-                    mergedBase[kvp.Key] = kvp.Value;
-                }
+                mergedBase[kvp.Key] = kvp.Value;
             }
 
             lock (SyncLock)
@@ -346,6 +324,32 @@ namespace BSCustomClevoController.Utility
                 _supportedLanguages = ordered;
                 _englishBase = mergedBase;
             }
+        }
+
+        private static Dictionary<string, string> DiscoverLanguageDisplayNames(string folder)
+        {
+            var discovered = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                if (!Directory.Exists(folder))
+                {
+                    return discovered;
+                }
+
+                foreach (string filePath in Directory.GetFiles(folder, "*.ini"))
+                {
+                    string code = Path.GetFileNameWithoutExtension(filePath)?.Trim().ToLowerInvariant();
+                    if (IsValidLanguageCode(code))
+                    {
+                        discovered[code] = ReadDisplayName(filePath) ?? code;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("LocalizationManager.ReloadAvailableLanguages", ex);
+            }
+            return discovered;
         }
 
         private const string AppLanguageRegistryKey = @"HKEY_CURRENT_USER\Software\BSCustomClevoController";
@@ -398,16 +402,13 @@ namespace BSCustomClevoController.Utility
                 mergedStrings = new Dictionary<string, string>(_englishBase, StringComparer.Ordinal);
             }
 
-            if (!string.Equals(normalized, "en-us", StringComparison.OrdinalIgnoreCase) &&
+            if (!string.Equals(normalized, DefaultLanguageCode, StringComparison.OrdinalIgnoreCase) &&
                 TryResolveLanguagePackPath(normalized, out string filePath))
             {
                 Dictionary<string, string> overlay = LoadIniDictionary(filePath);
-                foreach (var kvp in overlay)
+                foreach (var kvp in overlay.Where(kvp => !string.Equals(kvp.Key, "_Name", StringComparison.Ordinal)))
                 {
-                    if (!string.Equals(kvp.Key, "_Name", StringComparison.Ordinal))
-                    {
-                        mergedStrings[kvp.Key] = kvp.Value;
-                    }
+                    mergedStrings[kvp.Key] = kvp.Value;
                 }
             }
 
@@ -422,21 +423,20 @@ namespace BSCustomClevoController.Utility
 
         private static string NormalizeCode(string code)
         {
-            if (!IsValidLanguageCode(code)) return "en-us";
+            if (!IsValidLanguageCode(code)) return DefaultLanguageCode;
             string lower = code.Trim().ToLowerInvariant();
 
             lock (SyncLock)
             {
-                foreach (var opt in _supportedLanguages)
+                LanguageOption match = _supportedLanguages.FirstOrDefault(
+                    opt => string.Equals(opt.Code, lower, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
                 {
-                    if (string.Equals(opt.Code, lower, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return opt.Code;
-                    }
+                    return match.Code;
                 }
             }
 
-            return "en-us";
+            return DefaultLanguageCode;
         }
 
         private static string ReadDisplayName(string filePath)
@@ -540,35 +540,42 @@ namespace BSCustomClevoController.Utility
             }
 
             var sb = new StringBuilder(raw.Length);
-            for (int i = 0; i < raw.Length; i++)
+            int i = 0;
+            while (i < raw.Length)
             {
                 char ch = raw[i];
-                if (ch == '\\' && i + 1 < raw.Length)
+                if (ch == '\\' && i + 1 < raw.Length && TryMapEscapeChar(raw[i + 1], out char unescaped))
                 {
-                    char next = raw[i + 1];
-                    switch (next)
-                    {
-                        case 'n':
-                            sb.Append('\n');
-                            i++;
-                            continue;
-                        case 'r':
-                            sb.Append('\r');
-                            i++;
-                            continue;
-                        case 't':
-                            sb.Append('\t');
-                            i++;
-                            continue;
-                        case '\\':
-                            sb.Append('\\');
-                            i++;
-                            continue;
-                    }
+                    sb.Append(unescaped);
+                    i += 2;
+                    continue;
                 }
                 sb.Append(ch);
+                i++;
             }
             return sb.ToString();
+        }
+
+        private static bool TryMapEscapeChar(char escaped, out char unescaped)
+        {
+            switch (escaped)
+            {
+                case 'n':
+                    unescaped = '\n';
+                    return true;
+                case 'r':
+                    unescaped = '\r';
+                    return true;
+                case 't':
+                    unescaped = '\t';
+                    return true;
+                case '\\':
+                    unescaped = '\\';
+                    return true;
+                default:
+                    unescaped = '\0';
+                    return false;
+            }
         }
     }
 }

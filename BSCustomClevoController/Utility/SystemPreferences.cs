@@ -178,7 +178,8 @@ namespace BSCustomClevoController.Utility
                 input[0] = 25;
                 input[1] = (byte)(_isFnLock ? 1 : 2);
                 input[2] = (byte)(_isWinKeyLocked ? 2 : 1);
-                input[3] = IsSwapWinFnSupported ? (byte)(_isSwapWinFn ? 1 : 2) : (byte)0;
+                byte swapState = _isSwapWinFn ? (byte)1 : (byte)2;
+                input[3] = IsSwapWinFnSupported ? swapState : (byte)0;
                 input[4] = _lastEcKeyboardState[3];
                 input[5] = _lastEcKeyboardState[4];
 
@@ -306,16 +307,17 @@ namespace BSCustomClevoController.Utility
             return res;
         }
 
-        private static bool ToggleFnLockFromEC()
+        private static void ToggleFnLockFromEC()
         {
             int ecState = ReadFnLockFromEC();
             if (ecState == 1 || ecState == 2)
             {
                 bool ecOn = ecState == 1;
                 bool target = (ecOn != _isFnLock) ? ecOn : !_isFnLock;
-                return SetFnLock(target);
+                SetFnLock(target);
+                return;
             }
-            return SetFnLock(!_isFnLock);
+            SetFnLock(!_isFnLock);
         }
 
         public static bool GetCapsLockState() => (NativeMethods.GetKeyState(NativeMethods.VK_CAPITAL) & 1) != 0;
@@ -361,19 +363,27 @@ namespace BSCustomClevoController.Utility
                 using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT CurrentBrightness FROM WmiMonitorBrightness"))
                 {
                     int current = 50;
-                    foreach (ManagementObject obj in searcher.Get())
+                    bool found = false;
+                    foreach (ManagementBaseObject obj in searcher.Get())
                     {
-                        current = Convert.ToInt32(obj["CurrentBrightness"]);
-                        break;
+                        if (!found && obj["CurrentBrightness"] != null)
+                        {
+                            current = Convert.ToInt32(obj["CurrentBrightness"]);
+                            found = true;
+                        }
                     }
 
                     int target = Math.Max(0, Math.Min(100, current + delta));
                     using (var methodSearcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBrightnessMethods"))
                     {
-                        foreach (ManagementObject obj in methodSearcher.Get())
+                        bool invoked = false;
+                        foreach (ManagementBaseObject obj in methodSearcher.Get())
                         {
-                            obj.InvokeMethod("WmiSetBrightness", new object[] { 1, (byte)target });
-                            break;
+                            if (!invoked && obj is ManagementObject methodObj)
+                            {
+                                methodObj.InvokeMethod("WmiSetBrightness", new object[] { 1, (byte)target });
+                                invoked = true;
+                            }
                         }
                     }
                 }
@@ -408,7 +418,7 @@ namespace BSCustomClevoController.Utility
                     GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
                     try
                     {
-                        NativeMethods.COPYDATASTRUCT cds = new NativeMethods.COPYDATASTRUCT
+                        NativeMethods.CopyDataStruct cds = new NativeMethods.CopyDataStruct
                         {
                             dwData = (IntPtr)((cmd >> 8) & 255),
                             cbData = data.Length,
@@ -493,92 +503,131 @@ namespace BSCustomClevoController.Utility
         {
             try
             {
-                PowerMode.Mode savedPower = PowerMode.GetStatus();
-                PowerMode.SetPowerMode(savedPower);
-
-                FanStatus fanStatus = Fan.GetStatus();
-                Fan.SetOffset((byte)Math.Max(0, Math.Min(100, fanStatus.Offset)));
-                if (fanStatus.Mode == Fan.Mode.Custom)
-                {
-                    Fan.SetCustomFanTable(fanStatus.Fan_CPU, fanStatus.Fan_GPU1);
-                }
-                Fan.SetMode(fanStatus.Mode);
-
-                KeyboardStatus kbStatus = KeyboardBackLight.GetStatus();
-                KeyboardHardwareCapabilities caps = KeyboardBackLight.GetCapabilities();
-                byte targetBrightness = kbStatus.BackLight.A > 0 ? kbStatus.BackLight.A : (byte)255;
-                KeyboardEffects.MaxBrightness = targetBrightness;
-
-                KeyboardEffect savedEffect = null;
-                int animSpeed = 2;
-                object regEffectActive = Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
-                if (regEffectActive is int intEffActive && intEffActive == 1)
-                {
-                    object regEffectId = Registry.GetValue(AppRegistryKey, "KbEffectId", null);
-                    object regEffectUniq = Registry.GetValue(AppRegistryKey, "KbEffectUniqId", null);
-                    object regEffectName = Registry.GetValue(AppRegistryKey, "KbEffectName", null);
-                    if (regEffectId is int effId)
-                    {
-                        byte effUniq = regEffectUniq is int u ? (byte)u : (byte)0;
-                        string effName = regEffectName as string;
-                        savedEffect = KeyboardEffect.LookUpEffect(effId, effUniq, effName);
-                    }
-                    object regSpeed = Registry.GetValue(AppRegistryKey, "KbAnimationSpeed", null);
-                    if (regSpeed is int s && s >= 1 && s <= 3) animSpeed = s;
-                }
-
-                bool onBattery = KeyboardEffects.IsRunningOnBattery;
-                bool shouldStartEffect = kbStatus.LightState && savedEffect != null && (!savedEffect.IsSoftware || !onBattery);
-                if (shouldStartEffect)
-                {
-                    KeyboardEffect.CurrentAnimationSpeed = animSpeed;
-                    KeyboardEffects.Duration = animSpeed == 1 ? 5000 : (animSpeed == 3 ? 1000 : 2500);
-                    KeyboardEffects.MaxBrightness = targetBrightness;
-                }
-                else if (kbStatus.LightState && savedEffect != null && savedEffect.IsSoftware && onBattery)
-                {
-                    KeyboardEffects.SavedBatterySoftwareEffect = savedEffect;
-                }
-
-                bool alreadySynced = IsKeyboardHardwareSyncedInSession();
-                KeyboardBackLight.ApplySavedLightingOnStartup(
-                    kbStatus,
-                    caps,
-                    savedEffect,
-                    shouldStartEffect,
-                    targetBrightness,
-                    skipHardwareWrite: alreadySynced);
-                if (!alreadySynced)
-                {
-                    MarkKeyboardHardwareSyncedInSession();
-                }
-
-                if (!_ecSettingsAppliedOnStartup)
-                {
-                    ApplyKeyboardSettingsToEC();
-                    _ecSettingsAppliedOnStartup = true;
-                }
-
-                object regBatMode = Registry.GetValue(AppRegistryKey, "BatteryMode", null);
-                if (regBatMode is int intBatMode)
-                {
-                    int start = 90;
-                    int stop = 100;
-                    object regStart = Registry.GetValue(AppRegistryKey, "BatteryStart", 90);
-                    object regStop = Registry.GetValue(AppRegistryKey, "BatteryStop", 100);
-                    if (regStart is int s) start = s;
-                    if (regStop is int st) stop = st;
-                    BatteryControl.SetChargeMode((BatteryChargeMode)intBatMode, start, stop);
-                }
-                else
-                {
-                    BatteryChargeStatus batStatus = BatteryControl.GetStatus();
-                    BatteryControl.SetChargeMode(batStatus.Mode, batStatus.StartThreshold, batStatus.StopThreshold);
-                }
+                ApplySavedPowerAndFanSettings();
+                ApplySavedKeyboardSettings();
+                ApplySavedBatterySettings();
             }
             catch (Exception ex)
             {
                 AppLogger.Log("SystemPreferences.ApplySavedSettings", ex);
+            }
+        }
+
+        private static void ApplySavedPowerAndFanSettings()
+        {
+            PowerMode.Mode savedPower = PowerMode.GetStatus();
+            PowerMode.SetPowerMode(savedPower);
+
+            FanStatus fanStatus = Fan.GetStatus();
+            Fan.SetOffset((byte)Math.Max(0, Math.Min(100, fanStatus.Offset)));
+            if (fanStatus.Mode == Fan.Mode.Custom)
+            {
+                Fan.SetCustomFanTable(fanStatus.Fan_CPU, fanStatus.Fan_GPU1);
+            }
+            Fan.SetMode(fanStatus.Mode);
+        }
+
+        private static void ApplySavedKeyboardSettings()
+        {
+            KeyboardStatus kbStatus = KeyboardBackLight.GetStatus();
+            KeyboardHardwareCapabilities caps = KeyboardBackLight.GetCapabilities();
+            byte targetBrightness = kbStatus.BackLight.A > 0 ? kbStatus.BackLight.A : (byte)255;
+            KeyboardEffects.SetMaxBrightness(targetBrightness);
+
+            int animSpeed;
+            KeyboardEffect savedEffect = ResolveSavedKeyboardEffect(out animSpeed);
+
+            bool onBattery = KeyboardEffects.IsRunningOnBattery;
+            bool shouldStartEffect = kbStatus.LightState && savedEffect != null && (!savedEffect.IsSoftware || !onBattery);
+            if (shouldStartEffect)
+            {
+                KeyboardEffect.SetCurrentAnimationSpeed(animSpeed);
+                KeyboardEffects.SetDuration(SpeedToDurationMs(animSpeed));
+                KeyboardEffects.SetMaxBrightness(targetBrightness);
+            }
+            else if (kbStatus.LightState && savedEffect != null && savedEffect.IsSoftware && onBattery)
+            {
+                KeyboardEffects.SavedBatterySoftwareEffect = savedEffect;
+            }
+
+            bool alreadySynced = IsKeyboardHardwareSyncedInSession();
+            KeyboardBackLight.ApplySavedLightingOnStartup(
+                kbStatus,
+                caps,
+                savedEffect,
+                shouldStartEffect,
+                targetBrightness,
+                skipHardwareWrite: alreadySynced);
+            if (!alreadySynced)
+            {
+                MarkKeyboardHardwareSyncedInSession();
+            }
+
+            if (!_ecSettingsAppliedOnStartup)
+            {
+                ApplyKeyboardSettingsToEC();
+                _ecSettingsAppliedOnStartup = true;
+            }
+        }
+
+        private static int SpeedToDurationMs(int animSpeed)
+        {
+            if (animSpeed == 1)
+            {
+                return 5000;
+            }
+            if (animSpeed == 3)
+            {
+                return 1000;
+            }
+            return 2500;
+        }
+
+        private static KeyboardEffect ResolveSavedKeyboardEffect(out int animSpeed)
+        {
+            animSpeed = 2;
+            object regEffectActive = Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
+            if (!(regEffectActive is int intEffActive) || intEffActive != 1)
+            {
+                return null;
+            }
+
+            KeyboardEffect savedEffect = null;
+            object regEffectId = Registry.GetValue(AppRegistryKey, "KbEffectId", null);
+            object regEffectUniq = Registry.GetValue(AppRegistryKey, "KbEffectUniqId", null);
+            object regEffectName = Registry.GetValue(AppRegistryKey, "KbEffectName", null);
+            if (regEffectId is int effId)
+            {
+                byte effUniq = regEffectUniq is int u ? (byte)u : (byte)0;
+                string effName = regEffectName as string;
+                savedEffect = KeyboardEffect.LookUpEffect(effId, effUniq, effName);
+            }
+
+            object regSpeed = Registry.GetValue(AppRegistryKey, "KbAnimationSpeed", null);
+            if (regSpeed is int s && s >= 1 && s <= 3)
+            {
+                animSpeed = s;
+            }
+            return savedEffect;
+        }
+
+        private static void ApplySavedBatterySettings()
+        {
+            object regBatMode = Registry.GetValue(AppRegistryKey, "BatteryMode", null);
+            if (regBatMode is int intBatMode)
+            {
+                int start = 90;
+                int stop = 100;
+                object regStart = Registry.GetValue(AppRegistryKey, "BatteryStart", 90);
+                object regStop = Registry.GetValue(AppRegistryKey, "BatteryStop", 100);
+                if (regStart is int s) start = s;
+                if (regStop is int st) stop = st;
+                BatteryControl.SetChargeMode((BatteryChargeMode)intBatMode, start, stop);
+            }
+            else
+            {
+                BatteryChargeStatus batStatus = BatteryControl.GetStatus();
+                BatteryControl.SetChargeMode(batStatus.Mode, batStatus.StartThreshold, batStatus.StopThreshold);
             }
         }
 

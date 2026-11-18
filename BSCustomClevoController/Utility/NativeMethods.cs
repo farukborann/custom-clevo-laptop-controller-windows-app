@@ -8,7 +8,7 @@ namespace BSCustomClevoController.Utility
         public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct COPYDATASTRUCT
+        public struct CopyDataStruct
         {
             public IntPtr dwData;
             public int cbData;
@@ -16,7 +16,7 @@ namespace BSCustomClevoController.Utility
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct KBDLLHOOKSTRUCT
+        public struct KbdllHookStruct
         {
             public uint vkCode;
             public uint scanCode;
@@ -73,9 +73,9 @@ namespace BSCustomClevoController.Utility
 
         [DllImport("user32.dll", EntryPoint = "SendMessage", CharSet = CharSet.Auto, SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        private static extern IntPtr NativeSendMessageData(IntPtr hWnd, uint Msg, UIntPtr wParam, ref COPYDATASTRUCT lParam);
+        private static extern IntPtr NativeSendMessageData(IntPtr hWnd, uint Msg, UIntPtr wParam, ref CopyDataStruct lParam);
 
-        public static IntPtr SendMessageData(IntPtr hWnd, int Msg, int wParam, ref COPYDATASTRUCT lParam) =>
+        public static IntPtr SendMessageData(IntPtr hWnd, int Msg, int wParam, ref CopyDataStruct lParam) =>
             NativeSendMessageData(hWnd, (uint)Msg, unchecked((UIntPtr)(uint)wParam), ref lParam);
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -166,7 +166,7 @@ namespace BSCustomClevoController.Utility
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct SYSTEM_POWER_STATUS
+        public struct SystemPowerStatus
         {
             public byte ACLineStatus;
             public byte BatteryFlag;
@@ -179,13 +179,13 @@ namespace BSCustomClevoController.Utility
         [DllImport("kernel32.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
+        public static extern bool GetSystemPowerStatus(out SystemPowerStatus lpSystemPowerStatus);
 
         public static bool IsAcLineOnline(bool defaultIfUnknown = true)
         {
             try
             {
-                if (!GetSystemPowerStatus(out SYSTEM_POWER_STATUS status))
+                if (!GetSystemPowerStatus(out SystemPowerStatus status))
                 {
                     return defaultIfUnknown;
                 }

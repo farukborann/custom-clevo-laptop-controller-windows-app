@@ -118,73 +118,63 @@ namespace BSCustomClevoController.Views
                     CpuNameText.Text = CpuPowerControl.CpuModel;
                 }
 
-                bool cpuOcSupported = CpuPowerControl.IsSupported;
-                if (CpuPowerSlider != null)
-                {
-                    CpuPowerSlider.IsEnabled = cpuOcSupported;
-                }
-
-                if (cpuOcSupported)
-                {
-                    if (CpuPerformanceCard != null)
-                    {
-                        CpuPerformanceCard.Opacity = 1.0;
-                    }
-                    if (CpuOcBadge != null)
-                    {
-                        CpuOcBadge.Background = new SolidColorBrush(Color.FromRgb(27, 62, 50));
-                        CpuOcBadge.BorderBrush = (Brush)FindResource("Amoled.Success");
-                    }
-                    if (CpuOcBadgeText != null)
-                    {
-                        CpuOcBadgeText.Foreground = (Brush)FindResource("Amoled.Success");
-                    }
-
-                    int initialCpuPower = CpuPowerControl.GetPowerOffset();
-                    if (CpuPowerSlider != null)
-                    {
-                        CpuPowerSlider.Value = initialCpuPower;
-                    }
-                    UpdateCpuPerformanceText(true, initialCpuPower);
-                }
-                else
-                {
-                    if (CpuPerformanceCard != null)
-                    {
-                        CpuPerformanceCard.Opacity = 0.65;
-                    }
-                    if (CpuOcBadge != null)
-                    {
-                        CpuOcBadge.Background = new SolidColorBrush(Color.FromArgb(40, 100, 100, 110));
-                        CpuOcBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 140, 140, 150));
-                    }
-                    if (CpuOcBadgeText != null)
-                    {
-                        CpuOcBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 170));
-                    }
-                    UpdateCpuPerformanceText(false, 0);
-                    if (CpuPowerSlider != null)
-                    {
-                        CpuPowerSlider.Value = 0;
-                    }
-                }
-
-                if (NvidiaPowerControl.IsNvidiaPresent)
-                {
-                    NvidiaTgpCard.Visibility = Visibility.Visible;
-                    NvidiaGpuNameText.Text = NvidiaPowerControl.GpuModel;
-                    int initialTgp = NvidiaPowerControl.GetTgpOffset();
-                    TgpOffsetSlider.Value = initialTgp;
-                    UpdateTgpLabel(initialTgp);
-                }
-                else
-                {
-                    NvidiaTgpCard.Visibility = Visibility.Collapsed;
-                }
+                ConfigureCpuOverclockCard();
+                ConfigureNvidiaTgpCard();
             }
             catch (Exception ex)
             {
                 AppLogger.Log("Page_OtherSettings.InitializePerformanceTuning", ex);
+            }
+        }
+
+        private void ConfigureCpuOverclockCard()
+        {
+            bool cpuOcSupported = CpuPowerControl.IsSupported;
+            if (CpuPowerSlider != null)
+            {
+                CpuPowerSlider.IsEnabled = cpuOcSupported;
+            }
+
+            if (cpuOcSupported)
+            {
+                if (CpuPerformanceCard != null) CpuPerformanceCard.Opacity = 1.0;
+                if (CpuOcBadge != null)
+                {
+                    CpuOcBadge.Background = new SolidColorBrush(Color.FromRgb(27, 62, 50));
+                    CpuOcBadge.BorderBrush = (Brush)FindResource("Amoled.Success");
+                }
+                if (CpuOcBadgeText != null) CpuOcBadgeText.Foreground = (Brush)FindResource("Amoled.Success");
+
+                int initialCpuPower = CpuPowerControl.GetPowerOffset();
+                if (CpuPowerSlider != null) CpuPowerSlider.Value = initialCpuPower;
+                UpdateCpuPerformanceText(true, initialCpuPower);
+                return;
+            }
+
+            if (CpuPerformanceCard != null) CpuPerformanceCard.Opacity = 0.65;
+            if (CpuOcBadge != null)
+            {
+                CpuOcBadge.Background = new SolidColorBrush(Color.FromArgb(40, 100, 100, 110));
+                CpuOcBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 140, 140, 150));
+            }
+            if (CpuOcBadgeText != null) CpuOcBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 170));
+            UpdateCpuPerformanceText(false, 0);
+            if (CpuPowerSlider != null) CpuPowerSlider.Value = 0;
+        }
+
+        private void ConfigureNvidiaTgpCard()
+        {
+            if (NvidiaPowerControl.IsNvidiaPresent)
+            {
+                NvidiaTgpCard.Visibility = Visibility.Visible;
+                NvidiaGpuNameText.Text = NvidiaPowerControl.GpuModel;
+                int initialTgp = NvidiaPowerControl.GetTgpOffset();
+                TgpOffsetSlider.Value = initialTgp;
+                UpdateTgpLabel(initialTgp);
+            }
+            else
+            {
+                NvidiaTgpCard.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -197,88 +187,66 @@ namespace BSCustomClevoController.Views
                     SystemPreferences.QueryKeyboardSettingsFromEC();
                 }
 
-                if (PrefWinKeySwitch != null)
-                {
-                    PrefWinKeySwitch.IsChecked = SystemPreferences.IsWinKeyLocked;
-                }
-
-                if (PrefSwapWinFnSwitch != null)
-                {
-                    if (!SystemPreferences.IsSwapWinFnSupported)
-                    {
-                        PrefSwapWinFnSwitch.IsEnabled = false;
-                        PrefSwapWinFnSwitch.Opacity = 0.35;
-                        PrefSwapWinFnSwitch.IsChecked = false;
-                        PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.CommonNotSupported");
-                    }
-                    else
-                    {
-                        PrefSwapWinFnSwitch.IsEnabled = true;
-                        PrefSwapWinFnSwitch.Opacity = 1.0;
-                        PrefSwapWinFnSwitch.IsChecked = SystemPreferences.IsSwapWinFn;
-                        PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.ToolsSwapWinFnDesc");
-                    }
-                }
-
-                if (PrefFnLockSwitch != null)
-                {
-                    PrefFnLockSwitch.IsChecked = SystemPreferences.IsFnLock;
-                }
-
-                if (PrefTouchpadSwitch != null)
-                {
-                    PrefTouchpadSwitch.IsChecked = Touchpad.GetTouchpadState();
-                }
-
-                if (PrefCameraSwitch != null)
-                {
-                    PrefCameraSwitch.IsChecked = SystemPreferences.GetCameraState();
-                }
-
-                if (PrefMicSwitch != null)
-                {
-                    PrefMicSwitch.IsChecked = SystemPreferences.GetMicrophoneState();
-                }
-
-                if (PrefAirplaneSwitch != null)
-                {
-                    PrefAirplaneSwitch.IsChecked = SystemPreferences.GetAirplaneModeState();
-                }
-
-                if (PrefCapsSwitch != null)
-                {
-                    PrefCapsSwitch.IsChecked = SystemPreferences.GetCapsLockState();
-                }
-
-                if (PrefNumSwitch != null)
-                {
-                    PrefNumSwitch.IsChecked = SystemPreferences.GetNumLockState();
-                }
-
-                if (PrefScrSwitch != null)
-                {
-                    PrefScrSwitch.IsChecked = SystemPreferences.GetScrollLockState();
-                }
-
-                if (PerformanceTuningSection != null && NvidiaTgpCard != null && NvidiaTgpCard.Visibility == Visibility.Visible && NvidiaPowerControl.IsNvidiaPresent)
-                {
-                    bool isPowerSaver = (PowerMode.GetStatus() == PowerMode.Mode.Powersaving);
-                    if (isPowerSaver)
-                    {
-                        TgpOffsetSlider.IsEnabled = false;
-                        TgpOffsetText.Text = LocalizationManager.T("ToolsGpuPowerEco");
-                    }
-                    else
-                    {
-                        TgpOffsetSlider.IsEnabled = true;
-                        int currentOffset = (int)TgpOffsetSlider.Value;
-                        UpdateTgpLabel(currentOffset);
-                    }
-                }
+                SyncHardwareSwitchStates();
+                SyncSwapWinFnSwitchState();
+                SyncNvidiaTgpEcoState();
             }
             catch (Exception ex)
             {
                 AppLogger.Log("Page_OtherSettings.SyncHardwarePreferences", ex);
+            }
+        }
+
+        private void SyncHardwareSwitchStates()
+        {
+            if (PrefWinKeySwitch != null) PrefWinKeySwitch.IsChecked = SystemPreferences.IsWinKeyLocked;
+            if (PrefFnLockSwitch != null) PrefFnLockSwitch.IsChecked = SystemPreferences.IsFnLock;
+            if (PrefTouchpadSwitch != null) PrefTouchpadSwitch.IsChecked = Touchpad.GetTouchpadState();
+            if (PrefCameraSwitch != null) PrefCameraSwitch.IsChecked = SystemPreferences.GetCameraState();
+            if (PrefMicSwitch != null) PrefMicSwitch.IsChecked = SystemPreferences.GetMicrophoneState();
+            if (PrefAirplaneSwitch != null) PrefAirplaneSwitch.IsChecked = SystemPreferences.GetAirplaneModeState();
+            if (PrefCapsSwitch != null) PrefCapsSwitch.IsChecked = SystemPreferences.GetCapsLockState();
+            if (PrefNumSwitch != null) PrefNumSwitch.IsChecked = SystemPreferences.GetNumLockState();
+            if (PrefScrSwitch != null) PrefScrSwitch.IsChecked = SystemPreferences.GetScrollLockState();
+        }
+
+        private void SyncSwapWinFnSwitchState()
+        {
+            if (PrefSwapWinFnSwitch == null) return;
+
+            if (!SystemPreferences.IsSwapWinFnSupported)
+            {
+                PrefSwapWinFnSwitch.IsEnabled = false;
+                PrefSwapWinFnSwitch.Opacity = 0.35;
+                PrefSwapWinFnSwitch.IsChecked = false;
+                PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.CommonNotSupported");
+            }
+            else
+            {
+                PrefSwapWinFnSwitch.IsEnabled = true;
+                PrefSwapWinFnSwitch.Opacity = 1.0;
+                PrefSwapWinFnSwitch.IsChecked = SystemPreferences.IsSwapWinFn;
+                PrefSwapWinFnSubtitle?.SetResourceReference(TextBlock.TextProperty, "Loc.ToolsSwapWinFnDesc");
+            }
+        }
+
+        private void SyncNvidiaTgpEcoState()
+        {
+            if (PerformanceTuningSection == null || NvidiaTgpCard == null ||
+                NvidiaTgpCard.Visibility != Visibility.Visible || !NvidiaPowerControl.IsNvidiaPresent)
+            {
+                return;
+            }
+
+            if (PowerMode.GetStatus() == PowerMode.Mode.Powersaving)
+            {
+                TgpOffsetSlider.IsEnabled = false;
+                TgpOffsetText.Text = LocalizationManager.T("ToolsGpuPowerEco");
+            }
+            else
+            {
+                TgpOffsetSlider.IsEnabled = true;
+                UpdateTgpLabel((int)TgpOffsetSlider.Value);
             }
         }
 
@@ -299,7 +267,7 @@ namespace BSCustomClevoController.Views
 
         private void GpuMuxSwitch_Click(object sender, RoutedEventArgs e)
         {
-            bool discreteOnly = GpuMuxSwitch.IsChecked == true;
+            bool discreteOnly = GpuMuxSwitch.IsChecked.GetValueOrDefault();
             Capabilities.SetGpuMuxMode(discreteOnly);
             MessageBox.Show(
                 LocalizationManager.T(discreteOnly ? "ToolsGpuMuxSwitchedDgpu" : "ToolsGpuMuxSwitchedHybrid"),
@@ -310,12 +278,12 @@ namespace BSCustomClevoController.Views
 
         private void PrefWolBtn_Click(object sender, RoutedEventArgs e)
         {
-            Capabilities.SetWakeOnLan(PrefWolSwitch.IsChecked == true);
+            Capabilities.SetWakeOnLan(PrefWolSwitch.IsChecked.GetValueOrDefault());
         }
 
         private void PrefEthLedBtn_Click(object sender, RoutedEventArgs e)
         {
-            Capabilities.SetEthernetLed(PrefEthLedSwitch.IsChecked == true);
+            Capabilities.SetEthernetLed(PrefEthLedSwitch.IsChecked.GetValueOrDefault());
         }
 
         private void PrefUsbResetBtn_Click(object sender, RoutedEventArgs e)
@@ -340,7 +308,7 @@ namespace BSCustomClevoController.Views
             _syncResumeAtTicks = MonotonicClock.DeadlineFromNowMs(2500);
             if (PrefWinKeySwitch != null)
             {
-                SystemPreferences.SetWinKeyLock(PrefWinKeySwitch.IsChecked == true);
+                SystemPreferences.SetWinKeyLock(PrefWinKeySwitch.IsChecked.GetValueOrDefault());
             }
             else
             {
@@ -354,7 +322,7 @@ namespace BSCustomClevoController.Views
             _syncResumeAtTicks = MonotonicClock.DeadlineFromNowMs(2500);
             if (PrefSwapWinFnSwitch != null)
             {
-                SystemPreferences.SetSwapWinFn(PrefSwapWinFnSwitch.IsChecked == true);
+                SystemPreferences.SetSwapWinFn(PrefSwapWinFnSwitch.IsChecked.GetValueOrDefault());
             }
             else
             {
@@ -368,7 +336,7 @@ namespace BSCustomClevoController.Views
             _syncResumeAtTicks = MonotonicClock.DeadlineFromNowMs(2500);
             if (PrefFnLockSwitch != null)
             {
-                SystemPreferences.SetFnLock(PrefFnLockSwitch.IsChecked == true);
+                SystemPreferences.SetFnLock(PrefFnLockSwitch.IsChecked.GetValueOrDefault());
             }
             else
             {
@@ -494,8 +462,8 @@ namespace BSCustomClevoController.Views
 
         private void UpdateCpuLabel(int offset)
         {
-            if (CpuOcBadgeText == null) return;
-            CpuOcBadgeText.Text = FormatPowerOffsetLabel(offset);
+            if (this.CpuOcBadgeText == null) return;
+            this.CpuOcBadgeText.Text = FormatPowerOffsetLabel(offset);
         }
 
         private void TgpOffsetSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -509,8 +477,8 @@ namespace BSCustomClevoController.Views
 
         private void UpdateTgpLabel(int offset)
         {
-            if (TgpOffsetText == null) return;
-            TgpOffsetText.Text = FormatPowerOffsetLabel(offset);
+            if (this.TgpOffsetText == null) return;
+            this.TgpOffsetText.Text = FormatPowerOffsetLabel(offset);
         }
     }
 }

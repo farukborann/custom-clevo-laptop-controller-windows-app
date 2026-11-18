@@ -7,7 +7,7 @@ namespace BSCustomClevoController.Utility
 {
     public static class OsdOverlay
     {
-        private static bool _isEnabled = true;
+        private static bool _isEnabled = LoadInitialEnabledState();
         private static readonly object _lock = new object();
         private static string _lastOsdKey;
         private static long _lastOsdTicks;
@@ -15,20 +15,17 @@ namespace BSCustomClevoController.Utility
         /// <summary>UI-layer callback invoked with (imageName, localizedText) when an OSD should appear.</summary>
         public static Action<string, string> DisplayHandler { get; set; }
 
-        static OsdOverlay()
+        private static bool LoadInitialEnabledState()
         {
             try
             {
                 object val = Registry.GetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "ShowOSD", 1);
-                if (val is int intVal)
-                {
-                    _isEnabled = (intVal != 0);
-                }
+                return !(val is int intVal) || intVal != 0;
             }
             catch (Exception ex)
             {
-                AppLogger.Log("OsdOverlay.cctor", ex);
-                _isEnabled = true;
+                AppLogger.Log("OsdOverlay.LoadInitialEnabledState", ex);
+                return true;
             }
         }
 
@@ -190,7 +187,6 @@ namespace BSCustomClevoController.Utility
                     key = "OsdFanCustom";
                     fallback = "CUSTOM FAN";
                     break;
-                case Fan.Mode.Auto:
                 default:
                     img = "osd_fan_speed_auto_cc40_1.png";
                     key = "OsdFanAuto";
@@ -227,7 +223,6 @@ namespace BSCustomClevoController.Utility
                     key = "OsdPowerPerformance";
                     fallback = "PERFORMANCE";
                     break;
-                case PowerMode.Mode.Entertainment:
                 default:
                     img = "osd_entetainment2_cc40_1.png";
                     key = "OsdPowerEntertainment";

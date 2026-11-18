@@ -6,47 +6,54 @@ using BSCustomClevoController.Utility;
 
 namespace BSCustomClevoController.Views
 {
-    public partial class Page_About : Page
+    public partial class PageAbout : Page
     {
-        public Page_About()
+        private const string GitHubHost = "github.com";
+
+        public PageAbout()
         {
             InitializeComponent();
         }
 
         private void OpenUpstreamRepo_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/farukborann/custom-clevo-laptop-controller-windows-app");
+            OpenGitHubRepository("farukborann", "custom-clevo-laptop-controller-windows-app");
         }
 
         private void OpenCurrentRepo_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/AlberttFrgk/CustomClevoController");
+            OpenGitHubRepository("AlberttFrgk", "CustomClevoController");
         }
 
         private void OpenVaioCenter_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/GuilhermeBHanzen/vaio-center");
+            OpenGitHubRepository("GuilhermeBHanzen", "vaio-center");
         }
 
         private void OpenInsydeKeyboardLight_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/FFeng123/InsydeKeyboardLight");
+            OpenGitHubRepository("FFeng123", "InsydeKeyboardLight");
         }
 
         private void OpenCppKeyboardColour_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/DeviceIoControl/CppKeyboardColour");
+            OpenGitHubRepository("DeviceIoControl", "CppKeyboardColour");
         }
 
         private void OpenTuxedoKeyboard_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/tuxedocomputers/tuxedo-keyboard");
+            OpenGitHubRepository("tuxedocomputers", "tuxedo-keyboard");
         }
 
-        private void OpenUrl(string url)
+        private static void OpenGitHubRepository(string owner, string repository)
         {
-            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri parsedUri) ||
-                !string.Equals(parsedUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            Uri repoUri = new UriBuilder(Uri.UriSchemeHttps, GitHubHost, -1, $"{owner}/{repository}").Uri;
+            OpenUri(repoUri);
+        }
+
+        private static void OpenUri(Uri parsedUri)
+        {
+            if (parsedUri == null || !string.Equals(parsedUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }

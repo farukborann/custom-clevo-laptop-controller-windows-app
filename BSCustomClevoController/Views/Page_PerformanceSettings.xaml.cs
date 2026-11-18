@@ -35,24 +35,24 @@ namespace BSCustomClevoController.Views
 
         public void ApplyModeUI(PowerMode.Mode mode)
         {
-            SetCardState(QuietModeBtn, QuietActiveBadge, QuietActiveText, QuietModeBtnText, mode == PowerMode.Mode.Quiet);
-            SetCardState(PowerSaveModeBtn, PowerSaveActiveBadge, PowerSaveActiveText, PowerSaveModeBtnText, mode == PowerMode.Mode.Powersaving);
-            SetCardState(EntertainmentModeBtn, EntertainmentActiveBadge, EntertainmentActiveText, EntertainmentModeBtnText, mode == PowerMode.Mode.Entertainment);
-            SetCardState(PerformanceModeBtn, PerformanceActiveBadge, PerformanceActiveText, PerformanceModeBtnText, mode == PowerMode.Mode.Performance);
+            this.SetCardState(this.QuietModeBtn, this.QuietActiveBadge, this.QuietActiveText, this.QuietModeBtnText, mode == PowerMode.Mode.Quiet);
+            this.SetCardState(this.PowerSaveModeBtn, this.PowerSaveActiveBadge, this.PowerSaveActiveText, this.PowerSaveModeBtnText, mode == PowerMode.Mode.Powersaving);
+            this.SetCardState(this.EntertainmentModeBtn, this.EntertainmentActiveBadge, this.EntertainmentActiveText, this.EntertainmentModeBtnText, mode == PowerMode.Mode.Entertainment);
+            this.SetCardState(this.PerformanceModeBtn, this.PerformanceActiveBadge, this.PerformanceActiveText, this.PerformanceModeBtnText, mode == PowerMode.Mode.Performance);
 
             switch (mode)
             {
                 case PowerMode.Mode.Quiet:
-                    modeDetais.Text = QuietModeDesc;
+                    this.modeDetais.Text = QuietModeDesc;
                     break;
                 case PowerMode.Mode.Powersaving:
-                    modeDetais.Text = PowerSaveModeDesc;
+                    this.modeDetais.Text = PowerSaveModeDesc;
                     break;
                 case PowerMode.Mode.Performance:
-                    modeDetais.Text = PerformanceModeDesc;
+                    this.modeDetais.Text = PerformanceModeDesc;
                     break;
                 case PowerMode.Mode.Entertainment:
-                    modeDetais.Text = EntertainmentModeDesc;
+                    this.modeDetais.Text = EntertainmentModeDesc;
                     break;
             }
 

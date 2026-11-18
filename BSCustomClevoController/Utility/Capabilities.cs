@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Win32;
 
 namespace BSCustomClevoController.Utility
@@ -55,12 +56,9 @@ namespace BSCustomClevoController.Utility
                 {
                     var list = Check();
                     var map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var item in list)
+                    foreach (var item in list.Where(item => !string.IsNullOrEmpty(item.RawKey)))
                     {
-                        if (!string.IsNullOrEmpty(item.RawKey))
-                        {
-                            map[item.RawKey] = item.IsSupported;
-                        }
+                        map[item.RawKey] = item.IsSupported;
                     }
                     _cachedMap = map;
                 }
@@ -170,7 +168,7 @@ namespace BSCustomClevoController.Utility
                 DoWMIFlag(60, cmd60, ref features);
                 DoWMIFlag(16, cmd16, ref features);
 
-                return GetFeatures(features, cmd16, cmd96, cmd122);
+                return GetFeatures(features, cmd16, cmd96);
             }
             catch (Exception ex)
             {
@@ -185,7 +183,7 @@ namespace BSCustomClevoController.Utility
             }
         }
 
-        private static List<CapabilityItem> GetFeatures(Features features, int cmd16, int cmd96, int cmd122)
+        private static List<CapabilityItem> GetFeatures(Features features, int cmd16, int cmd96)
         {
             var list = new List<CapabilityItem>();
 

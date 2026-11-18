@@ -124,17 +124,17 @@ namespace BSCustomClevoController.Views
         private void ApplyFeatureCapabilities()
         {
             bool antiDustSupported = Fan.IsAntiDustSupported();
-            AntiDustModeBtn.IsEnabled = antiDustSupported;
+            this.AntiDustModeBtn.IsEnabled = antiDustSupported;
             if (!antiDustSupported)
             {
-                AntiDustModeBtn.ToolTip = LocalizationManager.T("CommonNotSupported");
+                this.AntiDustModeBtn.ToolTip = LocalizationManager.T("CommonNotSupported");
             }
 
             bool maxQSupported = Fan.IsMaxQSupported();
-            MaxQModeBtn.IsEnabled = maxQSupported;
+            this.MaxQModeBtn.IsEnabled = maxQSupported;
             if (!maxQSupported)
             {
-                MaxQModeBtn.ToolTip = LocalizationManager.T("CommonNotSupported");
+                this.MaxQModeBtn.ToolTip = LocalizationManager.T("CommonNotSupported");
             }
         }
 
@@ -219,15 +219,21 @@ namespace BSCustomClevoController.Views
                 info.D4 > 0 ? info.D4 : (byte)100
             };
 
+            ClampCurvePoints(rawTemps, rawSpeeds, temps, speeds);
+        }
+
+        private static void ClampCurvePoints(int[] rawTemps, byte[] rawSpeeds, int[] temps, byte[] speeds)
+        {
             for (int i = 0; i < CurvePointCount; i++)
             {
                 int minAllowed = 30 + i;
                 int maxAllowed = 100 - (CurvePointCount - 1 - i);
-                temps[i] = Math.Max(minAllowed, Math.Min(maxAllowed, rawTemps[i]));
-                if (i > 0 && temps[i] <= temps[i - 1])
+                int clampedTemp = Math.Max(minAllowed, Math.Min(maxAllowed, rawTemps[i]));
+                if (i > 0 && clampedTemp <= temps[i - 1])
                 {
-                    temps[i] = Math.Min(maxAllowed, temps[i - 1] + 1);
+                    clampedTemp = Math.Min(maxAllowed, temps[i - 1] + 1);
                 }
+                temps[i] = clampedTemp;
 
                 byte clampedSpeed = Math.Min((byte)100, rawSpeeds[i]);
                 if (i > 0 && clampedSpeed < speeds[i - 1])
@@ -339,39 +345,33 @@ namespace BSCustomClevoController.Views
                 LocalizationManager.T("FanRpmUnit", "RPM"),
                 percent > 0 ? percent : 0,
                 temp > 0 ? temp : 0);
-            label.Foreground = temp > 85 ? _colorRed : (temp > 70 ? _colorYellow : normalBrush);
+            if (temp > 85)
+            {
+                label.Foreground = _colorRed;
+            }
+            else
+            {
+                label.Foreground = temp > 70 ? _colorYellow : normalBrush;
+            }
         }
 
         private void rpmTimer_Tick(object sender, EventArgs e)
         {
-            int rpm_CPU = 0;
-            int percent_CPU = 0;
-            int remote_CPU = 0;
-            int rpm_GPU = 0;
-            int percent_GPU = 0;
-            int remote_GPU = 0;
-            int rpm_GPU2 = 0;
-            int percent_GPU2 = 0;
-            int remote_GPU2 = 0;
+            FanInfo cpu = default;
+            FanInfo gpu1 = default;
+            FanInfo gpu2 = default;
+            Fan.Read_FanSpeed(ref cpu, ref gpu1, ref gpu2);
 
             if (Fan.HasThirdFan)
             {
-                Fan.Read_FanSpeed(ref rpm_CPU, ref percent_CPU, ref remote_CPU,
-                                  ref rpm_GPU, ref percent_GPU, ref remote_GPU,
-                                  ref rpm_GPU2, ref percent_GPU2, ref remote_GPU2);
-
-                UpdateFanTelemetryDisplay(RpmGpu2Text, rpm_GPU2, percent_GPU2, remote_GPU2, _gpuPrimaryBrush);
-            }
-            else
-            {
-                Fan.Read_FanSpeed(ref rpm_CPU, ref percent_CPU, ref remote_CPU, ref rpm_GPU, ref percent_GPU, ref remote_GPU);
+                UpdateFanTelemetryDisplay(RpmGpu2Text, gpu2.rpm, gpu2.percent, gpu2.remote, _gpuPrimaryBrush);
             }
 
-            UpdateFanTelemetryDisplay(RpmCpuText, rpm_CPU, percent_CPU, remote_CPU, _cpuPrimaryBrush);
-            UpdateFanTelemetryDisplay(RpmGpuText, rpm_GPU, percent_GPU, remote_GPU, _gpuPrimaryBrush);
+            UpdateFanTelemetryDisplay(RpmCpuText, cpu.rpm, cpu.percent, cpu.remote, _cpuPrimaryBrush);
+            UpdateFanTelemetryDisplay(RpmGpuText, gpu1.rpm, gpu1.percent, gpu1.remote, _gpuPrimaryBrush);
 
-            _lastCpuTemp = remote_CPU;
-            _lastGpuTemp = remote_GPU;
+            _lastCpuTemp = cpu.remote;
+            _lastGpuTemp = gpu1.remote;
             RenderAllCurves();
         }
 
@@ -415,8 +415,8 @@ namespace BSCustomClevoController.Views
 
         private void CommitOffsetSliderValue()
         {
-            Fan.SetOffset(Convert.ToByte((int)OffsetSlider.Value));
-            OffsetValueText.Text = string.Format("{0}%", (int)OffsetSlider.Value);
+            Fan.SetOffset(Convert.ToByte((int)this.OffsetSlider.Value));
+            this.OffsetValueText.Text = string.Format("{0}%", (int)this.OffsetSlider.Value);
         }
 
         private void OffsetSlider_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
@@ -454,21 +454,7 @@ namespace BSCustomClevoController.Views
 
         private void RenderCurve(Canvas canvas, int[] temps, byte[] speeds, SolidColorBrush primaryBrush, int activeIdx, int liveTemp, TextBlock readout)
         {
-            if (readout != null)
-            {
-                if (activeIdx >= 0 && activeIdx < CurvePointCount)
-                {
-                    readout.Text = LocalizationManager.Format("FanCurvePointFmt", activeIdx + 1, temps[activeIdx], speeds[activeIdx]);
-                }
-                else if (liveTemp > 0)
-                {
-                    readout.Text = LocalizationManager.Format("FanCurveLiveFmt", liveTemp);
-                }
-                else
-                {
-                    readout.Text = LocalizationManager.T("FanCurveRange");
-                }
-            }
+            UpdateCurveReadout(readout, temps, speeds, activeIdx, liveTemp);
 
             if (canvas == null) return;
             double w = canvas.ActualWidth;
@@ -481,6 +467,29 @@ namespace BSCustomClevoController.Views
             double plotH = h - CurvePadYTop - CurvePadYBottom;
             double bottomY = CurvePadYTop + plotH;
 
+            RenderCurveGridAndLiveMarker(canvas, w, colW, bottomY, plotH, liveTemp);
+            RenderCurveSeriesAndHandles(canvas, temps, speeds, primaryBrush, activeIdx);
+        }
+
+        private static void UpdateCurveReadout(TextBlock readout, int[] temps, byte[] speeds, int activeIdx, int liveTemp)
+        {
+            if (readout == null) return;
+            if (activeIdx >= 0 && activeIdx < CurvePointCount)
+            {
+                readout.Text = LocalizationManager.Format("FanCurvePointFmt", activeIdx + 1, temps[activeIdx], speeds[activeIdx]);
+            }
+            else if (liveTemp > 0)
+            {
+                readout.Text = LocalizationManager.Format("FanCurveLiveFmt", liveTemp);
+            }
+            else
+            {
+                readout.Text = LocalizationManager.T("FanCurveRange");
+            }
+        }
+
+        private void RenderCurveGridAndLiveMarker(Canvas canvas, double w, double colW, double bottomY, double plotH, int liveTemp)
+        {
             for (int step = 0; step <= 4; step++)
             {
                 double gy = CurvePadYTop + plotH * (step / 4.0);
@@ -523,6 +532,18 @@ namespace BSCustomClevoController.Views
                     StrokeDashArray = new DoubleCollection { 3, 3 }
                 });
             }
+        }
+
+        private void RenderCurveSeriesAndHandles(
+            Canvas canvas,
+            int[] temps,
+            byte[] speeds,
+            SolidColorBrush primaryBrush,
+            int activeIdx)
+        {
+            double colW = canvas.ActualWidth / 8.0;
+            double plotH = canvas.ActualHeight - CurvePadYTop - CurvePadYBottom;
+            double bottomY = CurvePadYTop + plotH;
 
             double[] px = new double[CurvePointCount];
             double[] py = new double[CurvePointCount];
@@ -532,28 +553,8 @@ namespace BSCustomClevoController.Views
                 py[i] = SpeedToCanvasY(speeds[i], plotH);
             }
 
-            PointCollection linePoints = new PointCollection(CurvePointCount + 2);
-            PointCollection fillPoints = new PointCollection(CurvePointCount + 4);
-
-            if (temps[0] > 30)
-            {
-                linePoints.Add(new Point(0.5 * colW, py[0]));
-            }
-            for (int i = 0; i < CurvePointCount; i++)
-            {
-                linePoints.Add(new Point(px[i], py[i]));
-            }
-            if (temps[CurvePointCount - 1] < 100)
-            {
-                linePoints.Add(new Point(7.5 * colW, py[CurvePointCount - 1]));
-            }
-
-            fillPoints.Add(new Point(linePoints[0].X, bottomY));
-            for (int i = 0; i < linePoints.Count; i++)
-            {
-                fillPoints.Add(linePoints[i]);
-            }
-            fillPoints.Add(new Point(linePoints[linePoints.Count - 1].X, bottomY));
+            PointCollection linePoints = BuildCurveLinePoints(temps, colW, px, py);
+            PointCollection fillPoints = BuildCurveFillPoints(linePoints, bottomY);
 
             Color baseColor = primaryBrush.Color;
             canvas.Children.Add(new Polygon
@@ -575,45 +576,86 @@ namespace BSCustomClevoController.Views
 
             for (int i = 0; i < CurvePointCount; i++)
             {
-                bool isActive = (i == activeIdx);
-                if (isActive)
-                {
-                    Ellipse glow = new Ellipse
-                    {
-                        Width = 20,
-                        Height = 20,
-                        Fill = new SolidColorBrush(Color.FromArgb(55, baseColor.R, baseColor.G, baseColor.B))
-                    };
-                    Canvas.SetLeft(glow, px[i] - 10.0);
-                    Canvas.SetTop(glow, py[i] - 10.0);
-                    canvas.Children.Add(glow);
-                }
-
-                Ellipse handle = new Ellipse
-                {
-                    Width = 11,
-                    Height = 11,
-                    Fill = isActive ? (Brush)primaryBrush : _pointCoreBrush,
-                    Stroke = primaryBrush,
-                    StrokeThickness = 2.2
-                };
-                Canvas.SetLeft(handle, px[i] - 5.5);
-                Canvas.SetTop(handle, py[i] - 5.5);
-                canvas.Children.Add(handle);
-
-                TextBlock pctText = new TextBlock
-                {
-                    Text = speeds[i] + "%",
-                    FontSize = 10,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = isActive ? Brushes.White : (Brush)primaryBrush,
-                    Width = 32,
-                    TextAlignment = TextAlignment.Center
-                };
-                Canvas.SetLeft(pctText, px[i] - 16.0);
-                Canvas.SetTop(pctText, Math.Max(0.0, py[i] - 19.0));
-                canvas.Children.Add(pctText);
+                AddCurvePointHandle(canvas, primaryBrush, baseColor, px[i], py[i], speeds[i], i == activeIdx);
             }
+        }
+
+        private static PointCollection BuildCurveLinePoints(int[] temps, double colW, double[] px, double[] py)
+        {
+            PointCollection linePoints = new PointCollection(CurvePointCount + 2);
+            if (temps[0] > 30)
+            {
+                linePoints.Add(new Point(0.5 * colW, py[0]));
+            }
+            for (int i = 0; i < CurvePointCount; i++)
+            {
+                linePoints.Add(new Point(px[i], py[i]));
+            }
+            if (temps[CurvePointCount - 1] < 100)
+            {
+                linePoints.Add(new Point(7.5 * colW, py[CurvePointCount - 1]));
+            }
+            return linePoints;
+        }
+
+        private static PointCollection BuildCurveFillPoints(PointCollection linePoints, double bottomY)
+        {
+            PointCollection fillPoints = new PointCollection(CurvePointCount + 4);
+            fillPoints.Add(new Point(linePoints[0].X, bottomY));
+            for (int i = 0; i < linePoints.Count; i++)
+            {
+                fillPoints.Add(linePoints[i]);
+            }
+            fillPoints.Add(new Point(linePoints[linePoints.Count - 1].X, bottomY));
+            return fillPoints;
+        }
+
+        private void AddCurvePointHandle(
+            Canvas canvas,
+            SolidColorBrush primaryBrush,
+            Color baseColor,
+            double pointX,
+            double pointY,
+            byte speed,
+            bool isActive)
+        {
+            if (isActive)
+            {
+                Ellipse glow = new Ellipse
+                {
+                    Width = 20,
+                    Height = 20,
+                    Fill = new SolidColorBrush(Color.FromArgb(55, baseColor.R, baseColor.G, baseColor.B))
+                };
+                Canvas.SetLeft(glow, pointX - 10.0);
+                Canvas.SetTop(glow, pointY - 10.0);
+                canvas.Children.Add(glow);
+            }
+
+            Ellipse handle = new Ellipse
+            {
+                Width = 11,
+                Height = 11,
+                Fill = isActive ? (Brush)primaryBrush : _pointCoreBrush,
+                Stroke = primaryBrush,
+                StrokeThickness = 2.2
+            };
+            Canvas.SetLeft(handle, pointX - 5.5);
+            Canvas.SetTop(handle, pointY - 5.5);
+            canvas.Children.Add(handle);
+
+            TextBlock pctText = new TextBlock
+            {
+                Text = speed + "%",
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = isActive ? Brushes.White : (Brush)primaryBrush,
+                Width = 32,
+                TextAlignment = TextAlignment.Center
+            };
+            Canvas.SetLeft(pctText, pointX - 16.0);
+            Canvas.SetTop(pctText, Math.Max(0.0, pointY - 19.0));
+            canvas.Children.Add(pctText);
         }
 
         private static int HitTestNearestPointIndex(Canvas canvas, Point pos, int[] temps, byte[] speeds)
@@ -786,13 +828,19 @@ namespace BSCustomClevoController.Views
             FanInfo cpuInfo = new FanInfo(
                 _cpuCurveTemps[0], _cpuCurveSpeeds[0],
                 _cpuCurveTemps[1], _cpuCurveSpeeds[1],
-                _cpuCurveTemps[2], _cpuCurveSpeeds[2],
-                _cpuCurveTemps[3], _cpuCurveSpeeds[3]);
+                _cpuCurveTemps[2], _cpuCurveSpeeds[2])
+            {
+                T4 = (byte)_cpuCurveTemps[3],
+                D4 = _cpuCurveSpeeds[3]
+            };
             FanInfo gpuInfo = new FanInfo(
                 _gpuCurveTemps[0], _gpuCurveSpeeds[0],
                 _gpuCurveTemps[1], _gpuCurveSpeeds[1],
-                _gpuCurveTemps[2], _gpuCurveSpeeds[2],
-                _gpuCurveTemps[3], _gpuCurveSpeeds[3]);
+                _gpuCurveTemps[2], _gpuCurveSpeeds[2])
+            {
+                T4 = (byte)_gpuCurveTemps[3],
+                D4 = _gpuCurveSpeeds[3]
+            };
 
             Fan.SetCustomFanTable(cpuInfo, gpuInfo);
             Fan.SetMode(Fan.Mode.Custom);

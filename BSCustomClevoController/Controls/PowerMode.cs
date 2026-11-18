@@ -112,7 +112,6 @@ namespace BSCustomClevoController.Controls
                         case Mode.Entertainment:
                             next = Mode.Performance;
                             break;
-                        case Mode.Performance:
                         default:
                             next = Mode.Quiet;
                             break;

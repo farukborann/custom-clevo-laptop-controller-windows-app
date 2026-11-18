@@ -328,7 +328,7 @@ namespace BSCustomClevoController.Utility
 		}
 
 		// Token: 0x0600002D RID: 45 RVA: 0x00005058 File Offset: 0x00003258
-		public string GetECVersion()
+		public static string GetECVersion()
 		{
 			byte[] array = new byte[256];
 			byte[] array2 = new byte[256];

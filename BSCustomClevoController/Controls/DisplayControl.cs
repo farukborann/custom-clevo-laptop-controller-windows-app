@@ -7,7 +7,7 @@ namespace BSCustomClevoController.Controls
     public static class DisplayControl
     {
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-        public struct DEVMODE
+        public struct DevMode
         {
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
             public string dmDeviceName;
@@ -50,16 +50,16 @@ namespace BSCustomClevoController.Controls
 
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
+        private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DevMode devMode);
 
         [DllImport("user32.dll")]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        private static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
+        private static extern int ChangeDisplaySettings(ref DevMode devMode, int flags);
 
         public static int GetCurrentRefreshRate()
         {
-            DEVMODE dm = new DEVMODE();
-            dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+            DevMode dm = new DevMode();
+            dm.dmSize = (short)Marshal.SizeOf(typeof(DevMode));
             if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm))
             {
                 return dm.dmDisplayFrequency;
@@ -70,15 +70,15 @@ namespace BSCustomClevoController.Controls
         public static List<int> GetAvailableRefreshRates()
         {
             var rates = new SortedSet<int>();
-            DEVMODE current = new DEVMODE();
-            current.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+            DevMode current = new DevMode();
+            current.dmSize = (short)Marshal.SizeOf(typeof(DevMode));
             if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref current))
             {
                 int currentWidth = current.dmPelsWidth;
                 int currentHeight = current.dmPelsHeight;
 
-                DEVMODE mode = new DEVMODE();
-                mode.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+                DevMode mode = new DevMode();
+                mode.dmSize = (short)Marshal.SizeOf(typeof(DevMode));
                 int i = 0;
                 while (EnumDisplaySettings(null, i, ref mode))
                 {
@@ -100,8 +100,8 @@ namespace BSCustomClevoController.Controls
 
         public static bool SetRefreshRate(int hz)
         {
-            DEVMODE dm = new DEVMODE();
-            dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+            DevMode dm = new DevMode();
+            dm.dmSize = (short)Marshal.SizeOf(typeof(DevMode));
             if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm))
             {
                 dm.dmDisplayFrequency = hz;

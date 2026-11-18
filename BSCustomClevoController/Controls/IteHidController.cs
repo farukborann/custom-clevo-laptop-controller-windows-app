@@ -52,7 +52,7 @@ namespace BSCustomClevoController.Controls
         private static readonly object _lock = new object();
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct SP_DEVICE_INTERFACE_DATA
+        private struct SpDeviceInterfaceData
         {
             public int cbSize;
             public Guid interfaceClassGuid;
@@ -61,7 +61,7 @@ namespace BSCustomClevoController.Controls
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct HIDD_ATTRIBUTES
+        private struct HiddAttributes
         {
             public int Size;
             public ushort VendorID;
@@ -84,7 +84,7 @@ namespace BSCustomClevoController.Controls
 
         [DllImport("hid.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        private static extern bool HidD_GetAttributes(IntPtr hidDeviceObject, ref HIDD_ATTRIBUTES attributes);
+        private static extern bool HidD_GetAttributes(IntPtr hidDeviceObject, ref HiddAttributes attributes);
 
         [DllImport("hid.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -96,11 +96,11 @@ namespace BSCustomClevoController.Controls
 
         [DllImport("setupapi.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        private static extern bool SetupDiEnumDeviceInterfaces(IntPtr deviceInfoSet, IntPtr deviceInfoData, ref Guid interfaceClassGuid, uint memberIndex, ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData);
+        private static extern bool SetupDiEnumDeviceInterfaces(IntPtr deviceInfoSet, IntPtr deviceInfoData, ref Guid interfaceClassGuid, uint memberIndex, ref SpDeviceInterfaceData deviceInterfaceData);
 
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        private static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr deviceInfoSet, ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData, IntPtr deviceInterfaceDetailData, uint deviceInterfaceDetailDataSize, ref uint requiredSize, IntPtr deviceInfoData);
+        private static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr deviceInfoSet, ref SpDeviceInterfaceData deviceInterfaceData, IntPtr deviceInterfaceDetailData, uint deviceInterfaceDetailDataSize, ref uint requiredSize, IntPtr deviceInfoData);
 
         [DllImport("setupapi.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -175,86 +175,16 @@ namespace BSCustomClevoController.Controls
 
             try
             {
-                SP_DEVICE_INTERFACE_DATA interfaceData = new SP_DEVICE_INTERFACE_DATA();
+                SpDeviceInterfaceData interfaceData = new SpDeviceInterfaceData();
                 interfaceData.cbSize = Marshal.SizeOf(interfaceData);
 
                 uint index = 0;
                 while (SetupDiEnumDeviceInterfaces(devInfo, IntPtr.Zero, ref hidGuid, index++, ref interfaceData))
                 {
-                    uint requiredSize = 0;
-                    SetupDiGetDeviceInterfaceDetail(devInfo, ref interfaceData, IntPtr.Zero, 0, ref requiredSize, IntPtr.Zero);
-                    uint minSize = (uint)(IntPtr.Size == 8 ? 8 : 6);
-                    if (requiredSize < minSize || requiredSize > 65536) continue;
-
-                    IntPtr detailBuffer = Marshal.AllocHGlobal((int)requiredSize);
-                    try
+                    string devicePath = TryReadDeviceInterfacePath(devInfo, ref interfaceData);
+                    if (IsCandidateVendorPath(devicePath))
                     {
-                        Marshal.WriteInt32(detailBuffer, IntPtr.Size == 8 ? 8 : 4 + Marshal.SystemDefaultCharSize);
-
-                        if (SetupDiGetDeviceInterfaceDetail(devInfo, ref interfaceData, detailBuffer, requiredSize, ref requiredSize, IntPtr.Zero))
-                        {
-                            IntPtr pDevicePath = new IntPtr(detailBuffer.ToInt64() + 4);
-                            string devicePath = Marshal.PtrToStringAuto(pDevicePath);
-
-                            bool matchesVendor = !string.IsNullOrEmpty(devicePath) &&
-                                (devicePath.IndexOf("vid_048d", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                 devicePath.IndexOf("vid_373b", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                            if (matchesVendor)
-                            {
-                                IntPtr handle = CreateFile(devicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
-                                if (handle != INVALID_HANDLE_VALUE)
-                                {
-                                    try
-                                    {
-                                        HIDD_ATTRIBUTES attrs = new HIDD_ATTRIBUTES();
-                                        attrs.Size = Marshal.SizeOf(attrs);
-                                        if (HidD_GetAttributes(handle, ref attrs))
-                                        {
-                                            bool isVendorMatch = false;
-                                            foreach (int vid in SupportedVendorIds)
-                                            {
-                                                if (attrs.VendorID == vid)
-                                                {
-                                                    isVendorMatch = true;
-                                                    break;
-                                                }
-                                            }
-
-                                            if (isVendorMatch)
-                                            {
-                                                foreach (ushort pid in LightBarProductIds)
-                                                {
-                                                    if (attrs.ProductID == pid)
-                                                    {
-                                                        lightBarPath = devicePath;
-                                                        detectedPid = pid;
-                                                        break;
-                                                    }
-                                                }
-
-                                                foreach (ushort pid in SupportedProductIds)
-                                                {
-                                                    if (attrs.ProductID == pid && keyboardPath == null)
-                                                    {
-                                                        keyboardPath = devicePath;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    finally
-                                    {
-                                        CloseHandle(handle);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        Marshal.FreeHGlobal(detailBuffer);
+                        ClassifyIteHidDevice(devicePath, ref keyboardPath, ref lightBarPath, ref detectedPid);
                     }
                 }
             }
@@ -268,6 +198,83 @@ namespace BSCustomClevoController.Controls
             }
 
             return keyboardPath ?? lightBarPath;
+        }
+
+        private static string TryReadDeviceInterfacePath(IntPtr devInfo, ref SpDeviceInterfaceData interfaceData)
+        {
+            uint requiredSize = 0;
+            SetupDiGetDeviceInterfaceDetail(devInfo, ref interfaceData, IntPtr.Zero, 0, ref requiredSize, IntPtr.Zero);
+            uint minSize = (uint)(IntPtr.Size == 8 ? 8 : 6);
+            if (requiredSize < minSize || requiredSize > 65536)
+            {
+                return null;
+            }
+
+            IntPtr detailBuffer = Marshal.AllocHGlobal((int)requiredSize);
+            try
+            {
+                Marshal.WriteInt32(detailBuffer, IntPtr.Size == 8 ? 8 : 4 + Marshal.SystemDefaultCharSize);
+                if (!SetupDiGetDeviceInterfaceDetail(devInfo, ref interfaceData, detailBuffer, requiredSize, ref requiredSize, IntPtr.Zero))
+                {
+                    return null;
+                }
+
+                IntPtr pDevicePath = new IntPtr(detailBuffer.ToInt64() + 4);
+                return Marshal.PtrToStringAuto(pDevicePath);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(detailBuffer);
+            }
+        }
+
+        private static bool IsCandidateVendorPath(string devicePath)
+        {
+            if (string.IsNullOrEmpty(devicePath))
+            {
+                return false;
+            }
+
+            return devicePath.IndexOf("vid_048d", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   devicePath.IndexOf("vid_373b", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static void ClassifyIteHidDevice(
+            string devicePath,
+            ref string keyboardPath,
+            ref string lightBarPath,
+            ref ushort detectedPid)
+        {
+            IntPtr handle = CreateFile(devicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+            if (handle == INVALID_HANDLE_VALUE)
+            {
+                return;
+            }
+
+            try
+            {
+                HiddAttributes attrs = new HiddAttributes();
+                attrs.Size = Marshal.SizeOf(attrs);
+                if (!HidD_GetAttributes(handle, ref attrs) || Array.IndexOf(SupportedVendorIds, (int)attrs.VendorID) < 0)
+                {
+                    return;
+                }
+
+                if (Array.IndexOf(LightBarProductIds, attrs.ProductID) >= 0)
+                {
+                    lightBarPath = devicePath;
+                    detectedPid = attrs.ProductID;
+                }
+
+                if (keyboardPath == null && Array.IndexOf(SupportedProductIds, attrs.ProductID) >= 0)
+                {
+                    keyboardPath = devicePath;
+                }
+            }
+            finally
+            {
+                CloseHandle(handle);
+            }
         }
 
         private static bool SendCustomFeatureReport(string devicePath, byte[] reportBuffer)

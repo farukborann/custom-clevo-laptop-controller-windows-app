@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Win32;
 
 namespace BSCustomClevoController.Utility
@@ -68,36 +69,21 @@ namespace BSCustomClevoController.Utility
                         if (!sub.StartsWith("0"))
                             continue;
 
-                        using (RegistryKey subKey = baseKey.OpenSubKey(sub))
+                        string desc = ReadSubKeyDescription(baseKey, sub);
+                        if (desc == null)
+                            continue;
+
+                        GpuBrand brand = ClassifyGpuBrand(desc);
+                        if (brand == GpuBrand.Nvidia)
                         {
-                            object descVal = subKey?.GetValue("DriverDesc") ?? subKey?.GetValue("ProviderName");
-                            if (descVal == null)
-                                continue;
+                            gpuModel = desc;
+                            return GpuBrand.Nvidia;
+                        }
 
-                            string desc = descVal.ToString();
-                            if (desc.IndexOf("NVIDIA", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                desc.IndexOf("GeForce", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                desc.IndexOf("RTX", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                desc.IndexOf("GTX", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                desc.IndexOf("Quadro", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                gpuModel = desc;
-                                return GpuBrand.Nvidia;
-                            }
-
-                            if (bestBrand == GpuBrand.Unknown &&
-                                (desc.IndexOf("Radeon", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                 desc.IndexOf("AMD", StringComparison.OrdinalIgnoreCase) >= 0))
-                            {
-                                bestBrand = GpuBrand.Amd;
-                                bestModel = desc;
-                            }
-                            else if (bestBrand == GpuBrand.Unknown &&
-                                     desc.IndexOf("Intel", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                bestBrand = GpuBrand.Intel;
-                                bestModel = desc;
-                            }
+                        if (brand != GpuBrand.Unknown && bestBrand == GpuBrand.Unknown)
+                        {
+                            bestBrand = brand;
+                            bestModel = desc;
                         }
                     }
 
@@ -114,6 +100,37 @@ namespace BSCustomClevoController.Utility
             }
 
             return GpuBrand.Unknown;
+        }
+
+        private static string ReadSubKeyDescription(RegistryKey baseKey, string sub)
+        {
+            using (RegistryKey subKey = baseKey.OpenSubKey(sub))
+            {
+                object descVal = subKey?.GetValue("DriverDesc") ?? subKey?.GetValue("ProviderName");
+                return descVal?.ToString();
+            }
+        }
+
+        private static GpuBrand ClassifyGpuBrand(string desc)
+        {
+            if (ContainsAnyIgnoreCase(desc, "NVIDIA", "GeForce", "RTX", "GTX", "Quadro"))
+            {
+                return GpuBrand.Nvidia;
+            }
+            if (ContainsAnyIgnoreCase(desc, "Radeon", "AMD"))
+            {
+                return GpuBrand.Amd;
+            }
+            if (desc.IndexOf("Intel", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return GpuBrand.Intel;
+            }
+            return GpuBrand.Unknown;
+        }
+
+        private static bool ContainsAnyIgnoreCase(string source, params string[] tokens)
+        {
+            return tokens.Any(token => source.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0);
         }
     }
 }

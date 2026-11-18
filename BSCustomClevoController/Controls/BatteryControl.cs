@@ -13,24 +13,25 @@ namespace BSCustomClevoController.Controls
 
     public struct BatteryChargeStatus
     {
-        public bool Enabled;
-        public int StartThreshold;
-        public int StopThreshold;
-        public BatteryChargeMode Mode;
+        public bool Enabled { get; set; }
+        public int StartThreshold { get; set; }
+        public int StopThreshold { get; set; }
+        public BatteryChargeMode Mode { get; set; }
     }
 
     public struct BatteryTelemetry
     {
-        public int VoltageMv;
-        public int ChargeRateMw;
-        public int DischargeRateMw;
-        public bool IsCharging;
-        public bool IsDischarging;
-        public bool PowerOnline;
+        public int VoltageMv { get; set; }
+        public int ChargeRateMw { get; set; }
+        public int DischargeRateMw { get; set; }
+        public bool IsCharging { get; set; }
+        public bool IsDischarging { get; set; }
+        public bool PowerOnline { get; set; }
     }
 
     public static class BatteryControl
     {
+        private const string AppRegistryKey = @"HKEY_CURRENT_USER\Software\BSCustomClevoController";
         private static bool? _lastKnownSmartCharge;
 
         private static int GetDCHU_Data_Integer(int command, ref int data)
@@ -38,28 +39,38 @@ namespace BSCustomClevoController.Controls
             return InsydeDriver.GetDCHU_Data_Integer(command, ref data);
         }
 
-        private static int SetDCHU_Data(int command, byte[] buffer, int length)
+        private static void SetDCHU_Data(int command, byte[] buffer, int length)
         {
-            return InsydeDriver.SetDCHU_Data(command, buffer, length);
+            InsydeDriver.SetDCHU_Data(command, buffer, length);
         }
 
         public static BatteryTelemetry GetTelemetry()
         {
             var telemetry = new BatteryTelemetry();
+            TryPopulateWmiBatteryStatus(ref telemetry);
 
+            if (telemetry.VoltageMv <= 0)
+            {
+                TryPopulateWin32DesignVoltage(ref telemetry);
+            }
+
+            return telemetry;
+        }
+
+        private static void TryPopulateWmiBatteryStatus(ref BatteryTelemetry telemetry)
+        {
             try
             {
                 using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT Voltage, ChargeRate, DischargeRate, Charging, Discharging, PowerOnline FROM BatteryStatus"))
                 {
-                    foreach (ManagementObject obj in searcher.Get())
+                    bool populated = false;
+                    foreach (ManagementBaseObject obj in searcher.Get())
                     {
-                        if (obj["Voltage"] != null) telemetry.VoltageMv = Convert.ToInt32(obj["Voltage"]);
-                        if (obj["ChargeRate"] != null) telemetry.ChargeRateMw = Convert.ToInt32(obj["ChargeRate"]);
-                        if (obj["DischargeRate"] != null) telemetry.DischargeRateMw = Convert.ToInt32(obj["DischargeRate"]);
-                        if (obj["Charging"] != null) telemetry.IsCharging = Convert.ToBoolean(obj["Charging"]);
-                        if (obj["Discharging"] != null) telemetry.IsDischarging = Convert.ToBoolean(obj["Discharging"]);
-                        if (obj["PowerOnline"] != null) telemetry.PowerOnline = Convert.ToBoolean(obj["PowerOnline"]);
-                        break;
+                        if (!populated)
+                        {
+                            PopulateFromWmiBatteryObject(obj, ref telemetry);
+                            populated = true;
+                        }
                     }
                 }
             }
@@ -67,30 +78,37 @@ namespace BSCustomClevoController.Controls
             {
                 AppLogger.Log("BatteryControl.GetTelemetry.Wmi", ex);
             }
+        }
 
-            if (telemetry.VoltageMv <= 0)
+        private static void PopulateFromWmiBatteryObject(ManagementBaseObject obj, ref BatteryTelemetry telemetry)
+        {
+            if (obj["Voltage"] != null) telemetry.VoltageMv = Convert.ToInt32(obj["Voltage"]);
+            if (obj["ChargeRate"] != null) telemetry.ChargeRateMw = Convert.ToInt32(obj["ChargeRate"]);
+            if (obj["DischargeRate"] != null) telemetry.DischargeRateMw = Convert.ToInt32(obj["DischargeRate"]);
+            if (obj["Charging"] != null) telemetry.IsCharging = Convert.ToBoolean(obj["Charging"]);
+            if (obj["Discharging"] != null) telemetry.IsDischarging = Convert.ToBoolean(obj["Discharging"]);
+            if (obj["PowerOnline"] != null) telemetry.PowerOnline = Convert.ToBoolean(obj["PowerOnline"]);
+        }
+
+        private static void TryPopulateWin32DesignVoltage(ref BatteryTelemetry telemetry)
+        {
+            try
             {
-                try
+                using (var searcher = new ManagementObjectSearcher("SELECT DesignVoltage FROM Win32_Battery"))
                 {
-                    using (var searcher = new ManagementObjectSearcher("SELECT DesignVoltage FROM Win32_Battery"))
+                    foreach (ManagementBaseObject obj in searcher.Get())
                     {
-                        foreach (ManagementObject obj in searcher.Get())
+                        if (telemetry.VoltageMv <= 0 && obj["DesignVoltage"] != null)
                         {
-                            if (obj["DesignVoltage"] != null)
-                            {
-                                telemetry.VoltageMv = Convert.ToInt32(obj["DesignVoltage"]);
-                                break;
-                            }
+                            telemetry.VoltageMv = Convert.ToInt32(obj["DesignVoltage"]);
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    AppLogger.Log("BatteryControl.GetTelemetry.Win32", ex);
-                }
             }
-
-            return telemetry;
+            catch (Exception ex)
+            {
+                AppLogger.Log("BatteryControl.GetTelemetry.Win32", ex);
+            }
         }
 
         public static BatteryChargeStatus GetStatus()
@@ -186,9 +204,9 @@ namespace BSCustomClevoController.Controls
             _lastKnownSmartCharge = mode != BatteryChargeMode.Maximum;
             try
             {
-                Microsoft.Win32.Registry.SetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "BatteryMode", (int)mode, Microsoft.Win32.RegistryValueKind.DWord);
-                Microsoft.Win32.Registry.SetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "BatteryStart", start, Microsoft.Win32.RegistryValueKind.DWord);
-                Microsoft.Win32.Registry.SetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "BatteryStop", stop, Microsoft.Win32.RegistryValueKind.DWord);
+                Microsoft.Win32.Registry.SetValue(AppRegistryKey, "BatteryMode", (int)mode, Microsoft.Win32.RegistryValueKind.DWord);
+                Microsoft.Win32.Registry.SetValue(AppRegistryKey, "BatteryStart", start, Microsoft.Win32.RegistryValueKind.DWord);
+                Microsoft.Win32.Registry.SetValue(AppRegistryKey, "BatteryStop", stop, Microsoft.Win32.RegistryValueKind.DWord);
             }
             catch (Exception ex)
             {
@@ -205,7 +223,7 @@ namespace BSCustomClevoController.Controls
 
             try
             {
-                object val = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "BatteryMode", 0);
+                object val = Microsoft.Win32.Registry.GetValue(AppRegistryKey, "BatteryMode", 0);
                 return val is int intMode && intMode != 0;
             }
             catch
@@ -219,9 +237,19 @@ namespace BSCustomClevoController.Controls
         {
             int clamped = Math.Max(0, Math.Min(100, percent));
             int step = (int)Math.Round(clamped / 10.0, MidpointRounding.AwayFromZero);
-            int baseCodePoint = isCharging
-                ? 0xEBAB
-                : (smartCharge ? 0xEBB6 : 0xEBA0);
+            int baseCodePoint;
+            if (isCharging)
+            {
+                baseCodePoint = 0xEBAB;
+            }
+            else if (smartCharge)
+            {
+                baseCodePoint = 0xEBB6;
+            }
+            else
+            {
+                baseCodePoint = 0xEBA0;
+            }
             return char.ConvertFromUtf32(baseCodePoint + Math.Max(0, Math.Min(10, step)));
         }
     }

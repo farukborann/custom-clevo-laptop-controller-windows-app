@@ -144,11 +144,18 @@ namespace BSCustomClevoController.Controls
             return DisplayName;
         }
 
-        public static int CurrentAnimationSpeed = 2; // 1 = Slow, 2 = Normal, 3 = Fast
+        private static int _currentAnimationSpeed = 2; // 1 = Slow, 2 = Normal, 3 = Fast
+        public static int CurrentAnimationSpeed => _currentAnimationSpeed;
+
+        public static void SetCurrentAnimationSpeed(int speed) => _currentAnimationSpeed = speed;
 
         public static byte GetIteSpeedByte()
         {
-            return CurrentAnimationSpeed == 1 ? (byte)0x08 : (CurrentAnimationSpeed == 3 ? (byte)0x02 : (byte)0x05);
+            if (_currentAnimationSpeed == 1)
+            {
+                return 0x08;
+            }
+            return _currentAnimationSpeed == 3 ? (byte)0x02 : (byte)0x05;
         }
 
         public void SetEffect()

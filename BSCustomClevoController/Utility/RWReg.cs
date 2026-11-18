@@ -8,6 +8,8 @@ namespace BSCustomClevoController.Utility
 	// Token: 0x0200000C RID: 12
 	public class RWReg
 	{
+		private const string DefaultLanguageCode = "en-us";
+
 		// Token: 0x060000C7 RID: 199
 		[DllImport("kernel32.dll")]
 		private static extern int GetPrivateProfileSection(string lpAppName, byte[] lpszReturnBuffer, int nSize, string lpFileName);
@@ -191,7 +193,7 @@ namespace BSCustomClevoController.Utility
 			bool flag2 = text.Contains("en");
 			if (flag2)
 			{
-				bool flag3 = text == "en-us";
+				bool flag3 = text == DefaultLanguageCode;
 				if (flag3)
 				{
 					Global.Flexikey_LED_Language = 0;
@@ -200,7 +202,7 @@ namespace BSCustomClevoController.Utility
 				{
 					Global.Flexikey_LED_Language = 1;
 				}
-				text = "en-us";
+				text = DefaultLanguageCode;
 			}
 			else
 			{
@@ -335,7 +337,7 @@ namespace BSCustomClevoController.Utility
 																				if (!LocalizationManager.TryResolveLanguagePackPath(text, out string customPackPath) ||
 																					!System.IO.File.Exists(customPackPath))
 																				{
-																					text = "en-us";
+																					text = DefaultLanguageCode;
 																				}
 																				Global.Flexikey_LED_Language = 0;
 																			}
@@ -355,7 +357,7 @@ namespace BSCustomClevoController.Utility
 					}
 				}
 			}
-			this.WriteLanguage(text);
+			WriteLanguage(text);
 			return text;
 		}
 
@@ -366,11 +368,11 @@ namespace BSCustomClevoController.Utility
 		}
 
 		// Token: 0x060000DC RID: 220 RVA: 0x00009DEB File Offset: 0x00007FEB
-		public void WriteLanguage(string strLang)
+		public static void WriteLanguage(string strLang)
 		{
 			string normalized = LocalizationManager.IsValidLanguageCode(strLang)
 				? strLang.Trim().ToLowerInvariant()
-				: "en-us";
+				: DefaultLanguageCode;
 			Registry.SetValue(AppLanguageRegistryKey, AppLanguageRegistryValue, normalized, RegistryValueKind.String);
 			Registry.SetValue(LegacyLanguageRegistryKey, LegacyLanguageRegistryValue, normalized, RegistryValueKind.String);
 		}

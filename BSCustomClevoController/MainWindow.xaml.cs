@@ -2,6 +2,7 @@ using MahApps.Metro.Controls;
 using System;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,6 +16,8 @@ namespace BSCustomClevoController
 {
     public partial class MainWindow : MetroWindow
     {
+        private const string KeyboardSettingsTag = "KeyboardSettings";
+
         private int _clevoMsg;
         private int _clevoWmiMsg;
         private bool _startMinimized;
@@ -173,20 +176,20 @@ namespace BSCustomClevoController
                     case "FanSettings":
                         page = new Views.Page_FanSettings();
                         break;
-                    case "KeyboardSettings":
+                    case KeyboardSettingsTag:
                         page = new Views.Page_KeyboardSettings();
                         break;
                     case "BatterySettings":
-                        page = new Views.Page_BatterySettings();
+                        page = new Views.PageBatterySettings();
                         break;
                     case "OtherSettings":
                         page = new Views.Page_OtherSettings();
                         break;
                     case "Settings":
-                        page = new Views.Page_Settings();
+                        page = new Views.PageSettings();
                         break;
                     case "About":
-                        page = new Views.Page_About();
+                        page = new Views.PageAbout();
                         break;
                     default:
                         page = new Views.Page_PerformanceSettings();
@@ -199,17 +202,15 @@ namespace BSCustomClevoController
 
         public void ReloadCachedPages()
         {
-            var keys = new System.Collections.Generic.List<string>(_pageCache.Keys);
-            foreach (var key in keys)
+            foreach (var key in _pageCache.Keys
+                .Where(k => !string.Equals(k, "OtherSettings", StringComparison.OrdinalIgnoreCase))
+                .ToList())
             {
-                if (!string.Equals(key, "OtherSettings", StringComparison.OrdinalIgnoreCase))
-                {
-                    _pageCache.Remove(key);
-                }
+                _pageCache.Remove(key);
             }
         }
 
-        private Controls.PowerMode.Mode _lastPowerMode = Controls.PowerMode.Mode.Entertainment;
+        private Controls.PowerMode.Mode _lastPowerMode;
 
         private static string GetPowerModeDisplayName(Controls.PowerMode.Mode mode)
         {
@@ -271,7 +272,7 @@ namespace BSCustomClevoController
         private void UpdateSidebarIcons(HamburgerMenuIconItem activeItem)
         {
             if (activeItem == null) return;
-            var collection = HamburgerMenuControl.ItemsSource as System.Collections.IEnumerable;
+            var collection = this.HamburgerMenuControl.ItemsSource as System.Collections.IEnumerable;
             if (collection == null) return;
 
             foreach (HamburgerMenuIconItem item in collection)
@@ -289,7 +290,7 @@ namespace BSCustomClevoController
 
         private void notifyIconContext_KeyboardMenuClick(object sender, EventArgs e)
         {
-            NavigateToPage(2, "KeyboardSettings");
+            NavigateToPage(2, KeyboardSettingsTag);
         }
 
         private void notifyIconContext_BatteryMenuClick(object sender, EventArgs e)
@@ -342,7 +343,7 @@ namespace BSCustomClevoController
         {
             try
             {
-                if (_pageCache.TryGetValue("KeyboardSettings", out Page page) && page is Views.Page_KeyboardSettings kbPage)
+                if (_pageCache.TryGetValue(KeyboardSettingsTag, out Page page) && page is Views.Page_KeyboardSettings kbPage)
                 {
                     kbPage.UpdateBatterySoftwareAnimationState(isAcOnline);
                 }
@@ -357,7 +358,7 @@ namespace BSCustomClevoController
         {
             try
             {
-                if (_pageCache.TryGetValue("KeyboardSettings", out Page page) && page is Views.Page_KeyboardSettings kbPage)
+                if (_pageCache.TryGetValue(KeyboardSettingsTag, out Page page) && page is Views.Page_KeyboardSettings kbPage)
                 {
                     kbPage.SyncFromHardwareHotkey();
                 }
@@ -590,76 +591,90 @@ namespace BSCustomClevoController
 
             if (msg == _clevoMsg || msg == _clevoWmiMsg)
             {
-                int cmd = wParam.ToInt32();
-                switch (cmd)
-                {
-                    case 266: // Fan (Cooler Boost / Max Fan)
-                        Controls.Fan.ToggleAutoMaxFan();
-                        handled = true;
-                        break;
-                    case 271: // FN_3
-                    case 258: // SituationMode
-                        Controls.PowerMode.CyclePowerMode();
-                        handled = true;
-                        break;
-                    case 259: // Touchpad
-                        if (!Controls.Touchpad.IsHardwareEventSuppressed &&
-                            Utility.MonotonicClock.ElapsedMs(_lastTouchpadToggleTicks) >= 800)
-                        {
-                            _lastTouchpadToggleTicks = Utility.MonotonicClock.NowTicks();
-                            Controls.Touchpad.ToggleTouchpad();
-                        }
-                        handled = true;
-                        break;
-                    case 260: // Camera / CCD
-                        Utility.OsdOverlay.ShowCamera(Utility.SystemPreferences.GetCameraState());
-                        handled = true;
-                        break;
-                    case 261: // Airplane
-                        Utility.OsdOverlay.ShowAirplane(Utility.SystemPreferences.GetAirplaneModeState());
-                        handled = true;
-                        break;
-                    case 263: // Caps Lock
-                        Utility.OsdOverlay.ShowCaps(Utility.SystemPreferences.GetCapsLockState());
-                        handled = true;
-                        break;
-                    case 264: // Scroll Lock
-                        Utility.OsdOverlay.ShowScroll(Utility.SystemPreferences.GetScrollLockState());
-                        handled = true;
-                        break;
-                    case 265: // Num Lock
-                        Utility.OsdOverlay.ShowNum(Utility.SystemPreferences.GetNumLockState());
-                        handled = true;
-                        break;
-                    case 262: // WinKey / FlexiKey hotkey
-                        if (!Utility.SystemPreferences.IsRecentWinKeyChange(500))
-                        {
-                            Utility.SystemPreferences.ToggleWinKeyLock();
-                        }
-                        handled = true;
-                        break;
-                    case 267: // Generic hardware change notification (backlight, fan, power)
-                        Controls.Fan.CheckAndSyncFanFromHardware();
-                        handled = true;
-                        break;
-                    case 515: // KbBrightness
-                    case 516: // WhiteKbBrightness
-                    case 518: // PerKbBrightness
-                        try
-                        {
-                            var kbStatus = Controls.KeyboardBackLight.GetStatus();
-                            int lvl = (kbStatus.LightState && kbStatus.BackLight.A > 0) ? (int)Math.Round(kbStatus.BackLight.A / 255.0 * 4.0) : 0;
-                            Utility.OsdOverlay.ShowBacklight(lvl);
-                        }
-                        catch (Exception ex)
-                        {
-                            Utility.AppLogger.Log("MainWindow.WndProc.BacklightOsd", ex);
-                        }
-                        handled = true;
-                        break;
-                }
+                HandleClevoWindowMessage(wParam.ToInt32(), ref handled);
             }
             return IntPtr.Zero;
+        }
+
+        private void HandleClevoWindowMessage(int cmd, ref bool handled)
+        {
+            switch (cmd)
+            {
+                case 266: // Fan (Cooler Boost / Max Fan)
+                    Controls.Fan.ToggleAutoMaxFan();
+                    handled = true;
+                    break;
+                case 271: // FN_3
+                case 258: // SituationMode
+                    Controls.PowerMode.CyclePowerMode();
+                    handled = true;
+                    break;
+                case 259: // Touchpad
+                    HandleTouchpadHotkey();
+                    handled = true;
+                    break;
+                case 260: // Camera / CCD
+                    Utility.OsdOverlay.ShowCamera(Utility.SystemPreferences.GetCameraState());
+                    handled = true;
+                    break;
+                case 261: // Airplane
+                    Utility.OsdOverlay.ShowAirplane(Utility.SystemPreferences.GetAirplaneModeState());
+                    handled = true;
+                    break;
+                case 263: // Caps Lock
+                    Utility.OsdOverlay.ShowCaps(Utility.SystemPreferences.GetCapsLockState());
+                    handled = true;
+                    break;
+                case 264: // Scroll Lock
+                    Utility.OsdOverlay.ShowScroll(Utility.SystemPreferences.GetScrollLockState());
+                    handled = true;
+                    break;
+                case 265: // Num Lock
+                    Utility.OsdOverlay.ShowNum(Utility.SystemPreferences.GetNumLockState());
+                    handled = true;
+                    break;
+                case 262: // WinKey / FlexiKey hotkey
+                    if (!Utility.SystemPreferences.IsRecentWinKeyChange(500))
+                    {
+                        Utility.SystemPreferences.ToggleWinKeyLock();
+                    }
+                    handled = true;
+                    break;
+                case 267: // Generic hardware change notification (backlight, fan, power)
+                    Controls.Fan.CheckAndSyncFanFromHardware();
+                    handled = true;
+                    break;
+                case 515: // KbBrightness
+                case 516: // WhiteKbBrightness
+                case 518: // PerKbBrightness
+                    ShowBacklightLevelOsd();
+                    handled = true;
+                    break;
+            }
+        }
+
+        private void HandleTouchpadHotkey()
+        {
+            if (!Controls.Touchpad.IsHardwareEventSuppressed &&
+                Utility.MonotonicClock.ElapsedMs(_lastTouchpadToggleTicks) >= 800)
+            {
+                _lastTouchpadToggleTicks = Utility.MonotonicClock.NowTicks();
+                Controls.Touchpad.ToggleTouchpad();
+            }
+        }
+
+        private static void ShowBacklightLevelOsd()
+        {
+            try
+            {
+                var kbStatus = Controls.KeyboardBackLight.GetStatus();
+                int lvl = (kbStatus.LightState && kbStatus.BackLight.A > 0) ? (int)Math.Round(kbStatus.BackLight.A / 255.0 * 4.0) : 0;
+                Utility.OsdOverlay.ShowBacklight(lvl);
+            }
+            catch (Exception ex)
+            {
+                Utility.AppLogger.Log("MainWindow.WndProc.BacklightOsd", ex);
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 using BSCustomClevoController.Utility;
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -11,11 +12,11 @@ using BSCustomClevoController.Controls;
 
 namespace BSCustomClevoController.Views
 {
-    public partial class Page_Settings : Page
+    public partial class PageSettings : Page
     {
         private bool _isLoadingLanguage;
 
-        public Page_Settings()
+        public PageSettings()
         {
             InitializeComponent();
             LoadLanguageState();
@@ -42,13 +43,11 @@ namespace BSCustomClevoController.Views
                 LanguageComboBox.SelectedValue = LocalizationManager.CurrentLanguage;
                 if (LanguageComboBox.SelectedItem == null && languages != null)
                 {
-                    foreach (var opt in languages)
+                    var matchingLanguage = languages.FirstOrDefault(
+                        opt => string.Equals(opt.Code, LocalizationManager.CurrentLanguage, StringComparison.OrdinalIgnoreCase));
+                    if (matchingLanguage != null)
                     {
-                        if (string.Equals(opt.Code, LocalizationManager.CurrentLanguage, StringComparison.OrdinalIgnoreCase))
-                        {
-                            LanguageComboBox.SelectedItem = opt;
-                            break;
-                        }
+                        LanguageComboBox.SelectedItem = matchingLanguage;
                     }
                 }
             }
@@ -76,26 +75,26 @@ namespace BSCustomClevoController.Views
                 bool working = AcpiDriverInstaller.IsDriverWorking();
                 if (working)
                 {
-                    DriverStatusBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1A, 0x2D, 0x42));
-                    DriverStatusBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x25, 0x63, 0xEB));
-                    DriverStatusText.Text = LocalizationManager.T("SettingsStatusInstalled");
-                    DriverStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x79, 0xCF, 0xFF));
-                    ReinstallDriverBtn.Content = LocalizationManager.T("SettingsReinstall");
-                    UninstallDriverBtn.IsEnabled = true;
+                    this.DriverStatusBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1A, 0x2D, 0x42));
+                    this.DriverStatusBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x25, 0x63, 0xEB));
+                    this.DriverStatusText.Text = LocalizationManager.T("SettingsStatusInstalled");
+                    this.DriverStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x79, 0xCF, 0xFF));
+                    this.ReinstallDriverBtn.Content = LocalizationManager.T("SettingsReinstall");
+                    this.UninstallDriverBtn.IsEnabled = true;
                 }
                 else
                 {
-                    DriverStatusBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x1B, 0x1B));
-                    DriverStatusBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xDC, 0x26, 0x26));
-                    DriverStatusText.Text = LocalizationManager.T("SettingsStatusNotInstalled");
-                    DriverStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFA, 0x79, 0x70));
-                    ReinstallDriverBtn.Content = LocalizationManager.T("SettingsInstallDriver");
-                    UninstallDriverBtn.IsEnabled = false;
+                    this.DriverStatusBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x1B, 0x1B));
+                    this.DriverStatusBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xDC, 0x26, 0x26));
+                    this.DriverStatusText.Text = LocalizationManager.T("SettingsStatusNotInstalled");
+                    this.DriverStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFA, 0x79, 0x70));
+                    this.ReinstallDriverBtn.Content = LocalizationManager.T("SettingsInstallDriver");
+                    this.UninstallDriverBtn.IsEnabled = false;
                 }
             }
             catch (Exception ex)
             {
-                AppLogger.Log("Page_Settings.LoadDriverState", ex);
+                AppLogger.Log("PageSettings.LoadDriverState", ex);
             }
         }
 
@@ -181,8 +180,9 @@ namespace BSCustomClevoController.Views
                 {
                     Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\BSCustomClevoController", true)?.DeleteValue("DefaultsApplied", false);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    AppLogger.Log("Page_Settings.UninstallDriver.Registry", ex);
                 }
                 DriverStatusBadge.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x2E, 0x1B));
                 DriverStatusBadge.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x77, 0x06));
@@ -220,18 +220,18 @@ namespace BSCustomClevoController.Views
         {
             try
             {
-                OsdCheckBox.IsChecked = OsdOverlay.IsEnabled;
+                this.OsdCheckBox.IsChecked = OsdOverlay.IsEnabled;
             }
             catch (Exception ex)
             {
-                AppLogger.Log("Page_Settings.LoadOsdState", ex);
-                OsdCheckBox.IsChecked = true;
+                AppLogger.Log("PageSettings.LoadOsdState", ex);
+                this.OsdCheckBox.IsChecked = true;
             }
         }
 
         private void OsdCheckBox_Click(object sender, RoutedEventArgs e)
         {
-            bool enabled = OsdCheckBox.IsChecked == true;
+            bool enabled = OsdCheckBox.IsChecked.GetValueOrDefault();
             OsdOverlay.IsEnabled = enabled;
             SystemPreferences.UpdateHookState();
         }
@@ -320,40 +320,33 @@ namespace BSCustomClevoController.Views
                 System.Windows.Forms.Clipboard.SetDataObject(text, true, 10, 50);
                 return true;
             }
-            catch
+            catch (Exception wfEx)
             {
+                AppLogger.Log("Page_Settings.SafeSetClipboardText.WinForms", wfEx);
             }
 
-            for (int i = 0; i < 10; i++)
+            try
             {
-                try
-                {
-                    Clipboard.SetDataObject(text, true);
-                    return true;
-                }
-                catch (COMException)
-                {
-                    Thread.Sleep(40);
-                }
-                catch
-                {
-                    Thread.Sleep(40);
-                }
+                Clipboard.SetDataObject(text, true);
+                return true;
             }
-
-            return false;
+            catch (Exception wpfEx)
+            {
+                AppLogger.Log("Page_Settings.SafeSetClipboardText.Wpf", wpfEx);
+                return false;
+            }
         }
 
         private bool CopyAllToClipboard()
         {
-            if (FeaturesListBox.ItemsSource == null) return false;
+            if (this.FeaturesListBox.ItemsSource == null) return false;
 
             var sb = new StringBuilder();
             sb.AppendLine(LocalizationManager.T("SettingsDiagHeader", "=== Hardware EC Capabilities Diagnostic ==="));
             sb.AppendLine(LocalizationManager.Format("SettingsDiagTimestampFmt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", LocalizationManager.CurrentCulture)));
             sb.AppendLine();
 
-            foreach (var item in FeaturesListBox.ItemsSource)
+            foreach (var item in this.FeaturesListBox.ItemsSource)
             {
                 if (item != null)
                 {

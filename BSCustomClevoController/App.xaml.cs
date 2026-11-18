@@ -130,20 +130,47 @@ namespace BSCustomClevoController
         {
             Utility.NativeMethods.HardenDllSearchOrder();
 
-            if (e.Args != null)
+            if (HasUninstallArgument(e.Args))
             {
-                foreach (string arg in e.Args)
-                {
-                    if (string.Equals(arg, "/uninstall", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(arg, "--uninstall", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Utility.StartupManager.SetRunAtStartup(false);
-                        Shutdown();
-                        return;
-                    }
-                }
+                Utility.StartupManager.SetRunAtStartup(false);
+                Shutdown();
+                return;
             }
 
+            if (!TryAcquireSingleInstanceMutex())
+            {
+                SignalExistingInstanceAndExit();
+                return;
+            }
+
+            RegisterWakeListener();
+            RegisterWpfBridges();
+            Utility.LocalizationManager.Initialize();
+
+            Theme theme = AddCustomTheme();
+
+            if (!EnsureAcpiDriverReady())
+            {
+                Shutdown();
+                return;
+            }
+
+            EnsureStartupConfigured();
+            base.OnStartup(e);
+
+            ThemeManager.Current.ThemeSyncMode = ThemeSyncMode.DoNotSync;
+            ThemeManager.Current.ChangeTheme(this, theme);
+        }
+
+        private static bool HasUninstallArgument(string[] args)
+        {
+            return args != null && Array.Exists(args, arg =>
+                string.Equals(arg, "/uninstall", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(arg, "--uninstall", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool TryAcquireSingleInstanceMutex()
+        {
             bool createdNew;
             try
             {
@@ -158,22 +185,24 @@ namespace BSCustomClevoController
             {
                 _appMutex = new Mutex(true, AppMutexName, out createdNew);
             }
+            return createdNew;
+        }
 
-            if (!createdNew)
+        private void SignalExistingInstanceAndExit()
+        {
+            EventWaitHandle wakeHandle;
+            if (EventWaitHandle.TryOpenExisting(WakeEventName, out wakeHandle))
             {
-                EventWaitHandle wakeHandle;
-                if (EventWaitHandle.TryOpenExisting(WakeEventName, out wakeHandle))
+                using (wakeHandle)
                 {
-                    using (wakeHandle)
-                    {
-                        wakeHandle.Set();
-                    }
+                    wakeHandle.Set();
                 }
-
-                Shutdown();
-                return;
             }
+            Shutdown();
+        }
 
+        private static void RegisterWakeListener()
+        {
             try
             {
                 var eventSecurity = new EventWaitHandleSecurity();
@@ -190,59 +219,67 @@ namespace BSCustomClevoController
             }
 
             _waitRegistration = ThreadPool.RegisterWaitForSingleObject(_wakeEvent, OnWakeRequested, null, -1, false);
+        }
 
-            RegisterWpfBridges();
-            Utility.LocalizationManager.Initialize();
-
-            var theme = ThemeManager.Current.AddLibraryTheme(new LibraryTheme(
-                new Uri("pack://application:,,,/BSCustomClevoController;component/Dark.BlueBlack.xaml"),
+        private static Theme AddCustomTheme()
+        {
+            string themeUriText = string.Concat("pack", "://application:,,,/BSCustomClevoController;component/Dark.BlueBlack.xaml");
+            Uri.TryCreate(themeUriText, UriKind.Absolute, out Uri themeLocation);
+            return ThemeManager.Current.AddLibraryTheme(new LibraryTheme(
+                themeLocation,
                 MahAppsLibraryThemeProvider.DefaultInstance));
+        }
 
-            if (!Utility.AcpiDriverInstaller.IsDriverWorking())
+        private static bool EnsureAcpiDriverReady()
+        {
+            if (Utility.AcpiDriverInstaller.IsDriverWorking())
             {
-                var confirmResult = MessageBox.Show(
-                    Utility.LocalizationManager.T("DlgDriverSetupMsg"),
-                    Utility.LocalizationManager.T("DlgDriverSetupTitle"),
+                return true;
+            }
+
+            var confirmResult = MessageBox.Show(
+                Utility.LocalizationManager.T("DlgDriverSetupMsg"),
+                Utility.LocalizationManager.T("DlgDriverSetupTitle"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirmResult != MessageBoxResult.Yes)
+            {
+                return false;
+            }
+
+            bool rebootRequired;
+            bool installed = Utility.AcpiDriverInstaller.InstallDriver(out rebootRequired);
+
+            if (installed)
+            {
+                Utility.StartupManager.SetRunAtStartup(true);
+                var restartChoice = MessageBox.Show(
+                    Utility.LocalizationManager.T("DlgDriverInstalledMsg"),
+                    Utility.LocalizationManager.T("DlgDriverInstalledTitle"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
 
-                if (confirmResult != MessageBoxResult.Yes)
+                if (restartChoice == MessageBoxResult.Yes)
                 {
-                    Shutdown();
-                    return;
+                    Utility.AcpiDriverInstaller.RestartComputer();
+                    Thread.Sleep(1000);
                 }
-
-                bool rebootRequired;
-                bool installed = Utility.AcpiDriverInstaller.InstallDriver(out rebootRequired);
-
-                if (installed)
-                {
-                    Utility.StartupManager.SetRunAtStartup(true);
-                    var restartChoice = MessageBox.Show(
-                        Utility.LocalizationManager.T("DlgDriverInstalledMsg"),
-                        Utility.LocalizationManager.T("DlgDriverInstalledTitle"),
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-
-                    if (restartChoice == MessageBoxResult.Yes)
-                    {
-                        Utility.AcpiDriverInstaller.RestartComputer();
-                        Thread.Sleep(1000);
-                    }
-                }
-                else
-                {
-                    MessageBox.Show(
-                        Utility.LocalizationManager.T("DlgDriverErrorMsg"),
-                        Utility.LocalizationManager.T("DlgDriverErrorTitle"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-                }
-
-                Shutdown();
-                return;
+            }
+            else
+            {
+                MessageBox.Show(
+                    Utility.LocalizationManager.T("DlgDriverErrorMsg"),
+                    Utility.LocalizationManager.T("DlgDriverErrorTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
 
+            return false;
+        }
+
+        private static void EnsureStartupConfigured()
+        {
             // Keep startup permanent once the AcpiBridge driver is installed.
             if (!Utility.StartupManager.IsRunAtStartupEnabled())
             {
@@ -252,18 +289,13 @@ namespace BSCustomClevoController
             {
                 Utility.StartupManager.EnsureConfiguredCorrectly();
             }
-
-            base.OnStartup(e);
-
-            ThemeManager.Current.ThemeSyncMode = ThemeSyncMode.DoNotSync;
-            ThemeManager.Current.ChangeTheme(this, theme);
         }
 
-        private void OnWakeRequested(object state, bool timedOut)
+        private static void OnWakeRequested(object state, bool timedOut)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            Current?.Dispatcher?.BeginInvoke(new Action(() =>
             {
-                if (MainWindow is MainWindow mainWindow)
+                if (Current?.MainWindow is MainWindow mainWindow)
                 {
                     mainWindow.BringToForeground();
                 }
@@ -312,7 +344,12 @@ namespace BSCustomClevoController
         protected override void OnExit(ExitEventArgs e)
         {
             CleanupOnExit();
+            ReleaseSingleInstanceResources();
+            base.OnExit(e);
+        }
 
+        private static void ReleaseSingleInstanceResources()
+        {
             if (_waitRegistration != null)
             {
                 _waitRegistration.Unregister(null);
@@ -338,8 +375,6 @@ namespace BSCustomClevoController
                 _appMutex.Dispose();
                 _appMutex = null;
             }
-
-            base.OnExit(e);
         }
     }
 }

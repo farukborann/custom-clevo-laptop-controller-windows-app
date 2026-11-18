@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -36,9 +37,11 @@ namespace BSCustomClevoController.Utility
         private const uint DICS_FLAG_CONFIGSPECIFIC = 0x00000002;
         private const uint DN_HAS_PROBLEM = 0x00000400;
         private const uint CM_PROB_DISABLED = 0x00000016;
+        private const string ConsentAllow = "Allow";
+        private const string ConsentValueName = "Value";
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct SP_DEVINFO_DATA
+        private struct SpDevInfoData
         {
             public int cbSize;
             public Guid ClassGuid;
@@ -47,16 +50,16 @@ namespace BSCustomClevoController.Utility
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct SP_CLASSINSTALL_HEADER
+        private struct SpClassInstallHeader
         {
             public int cbSize;
             public int InstallFunction;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct SP_PROPCHANGE_PARAMS
+        private struct SpPropChangeParams
         {
-            public SP_CLASSINSTALL_HEADER ClassInstallHeader;
+            public SpClassInstallHeader ClassInstallHeader;
             public int StateChange;
             public int Scope;
             public int HwProfile;
@@ -75,14 +78,14 @@ namespace BSCustomClevoController.Utility
         private static extern bool SetupDiEnumDeviceInfo(
             IntPtr DeviceInfoSet,
             uint MemberIndex,
-            ref SP_DEVINFO_DATA DeviceInfoData);
+            ref SpDevInfoData DeviceInfoData);
 
         [DllImport("setupapi.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiSetClassInstallParams(
             IntPtr DeviceInfoSet,
-            ref SP_DEVINFO_DATA DeviceInfoData,
-            ref SP_PROPCHANGE_PARAMS ClassInstallParams,
+            ref SpDevInfoData DeviceInfoData,
+            ref SpPropChangeParams ClassInstallParams,
             int ClassInstallParamsSize);
 
         [DllImport("setupapi.dll", SetLastError = true)]
@@ -90,7 +93,7 @@ namespace BSCustomClevoController.Utility
         private static extern bool SetupDiCallClassInstaller(
             uint InstallFunction,
             IntPtr DeviceInfoSet,
-            ref SP_DEVINFO_DATA DeviceInfoData);
+            ref SpDevInfoData DeviceInfoData);
 
         [DllImport("setupapi.dll", SetLastError = true)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
@@ -100,7 +103,7 @@ namespace BSCustomClevoController.Utility
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiGetDeviceInstanceId(
             IntPtr DeviceInfoSet,
-            ref SP_DEVINFO_DATA DeviceInfoData,
+            ref SpDevInfoData DeviceInfoData,
             StringBuilder DeviceInstanceId,
             int DeviceInstanceIdSize,
             out int RequiredSize);
@@ -117,7 +120,7 @@ namespace BSCustomClevoController.Utility
 
         [ComImport]
         [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-        private class MMDeviceEnumeratorComObject
+        private sealed class MMDeviceEnumeratorComObject
         {
         }
 
@@ -185,7 +188,7 @@ namespace BSCustomClevoController.Utility
 
             try
             {
-                SP_DEVINFO_DATA data = new SP_DEVINFO_DATA { cbSize = Marshal.SizeOf(typeof(SP_DEVINFO_DATA)) };
+                SpDevInfoData data = new SpDevInfoData { cbSize = Marshal.SizeOf(typeof(SpDevInfoData)) };
                 uint idx = 0;
                 while (SetupDiEnumDeviceInfo(hDevInfo, idx, ref data))
                 {
@@ -202,39 +205,9 @@ namespace BSCustomClevoController.Utility
 
         public static bool GetCameraState()
         {
-            try
+            if (HasDisabledCameraDevNode())
             {
-                Guid[] guids = new Guid[] { GUID_DEVCLASS_CAMERA, GUID_DEVCLASS_IMAGE };
-                foreach (Guid classGuid in guids)
-                {
-                    Guid guidCopy = classGuid;
-                    IntPtr hDevInfo = SetupDiGetClassDevs(ref guidCopy, null, IntPtr.Zero, 0);
-                    if (hDevInfo == IntPtr.Zero || hDevInfo == (IntPtr)(-1))
-                        continue;
-
-                    try
-                    {
-                        SP_DEVINFO_DATA devInfoData = new SP_DEVINFO_DATA { cbSize = Marshal.SizeOf(typeof(SP_DEVINFO_DATA)) };
-                        uint index = 0;
-                        while (SetupDiEnumDeviceInfo(hDevInfo, index, ref devInfoData))
-                        {
-                            index++;
-                            if (CM_Get_DevNode_Status(out uint status, out uint problem, devInfoData.DevInst, 0) == 0 &&
-                                (problem == CM_PROB_DISABLED || (status & DN_HAS_PROBLEM) != 0))
-                            {
-                                return false;
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        SetupDiDestroyDeviceInfoList(hDevInfo);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Log("SystemPreferences.GetCameraState.DevNode", ex);
+                return false;
             }
 
             try
@@ -246,13 +219,8 @@ namespace BSCustomClevoController.Utility
                     return false;
                 }
 
-                object hklmVal = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam", "Value", "Allow");
-                if (hklmVal != null && string.Equals(hklmVal.ToString(), "Deny", StringComparison.OrdinalIgnoreCase))
-                    return false;
-
-                object hkcuVal = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam", "Value", "Allow");
-                if (hkcuVal != null && string.Equals(hkcuVal.ToString(), "Deny", StringComparison.OrdinalIgnoreCase))
-                    return false;
+                return !IsWebcamConsentDenied(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam")
+                    && !IsWebcamConsentDenied(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam");
             }
             catch (Exception ex)
             {
@@ -260,6 +228,56 @@ namespace BSCustomClevoController.Utility
             }
 
             return true;
+        }
+
+        private static bool HasDisabledCameraDevNode()
+        {
+            try
+            {
+                Guid[] guids = { GUID_DEVCLASS_CAMERA, GUID_DEVCLASS_IMAGE };
+                return guids.Any(HasDisabledDeviceInClass);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("SystemPreferences.GetCameraState.DevNode", ex);
+                return false;
+            }
+        }
+
+        private static bool HasDisabledDeviceInClass(Guid classGuid)
+        {
+            Guid guidCopy = classGuid;
+            IntPtr hDevInfo = SetupDiGetClassDevs(ref guidCopy, null, IntPtr.Zero, 0);
+            if (hDevInfo == IntPtr.Zero || hDevInfo == (IntPtr)(-1))
+            {
+                return false;
+            }
+
+            try
+            {
+                SpDevInfoData devInfoData = new SpDevInfoData { cbSize = Marshal.SizeOf(typeof(SpDevInfoData)) };
+                uint index = 0;
+                while (SetupDiEnumDeviceInfo(hDevInfo, index, ref devInfoData))
+                {
+                    index++;
+                    if (CM_Get_DevNode_Status(out uint status, out uint problem, devInfoData.DevInst, 0) == 0 &&
+                        (problem == CM_PROB_DISABLED || (status & DN_HAS_PROBLEM) != 0))
+                    {
+                        return true;
+                    }
+                }
+            }
+            finally
+            {
+                SetupDiDestroyDeviceInfoList(hDevInfo);
+            }
+            return false;
+        }
+
+        private static bool IsWebcamConsentDenied(string registryPath)
+        {
+            object val = Registry.GetValue(registryPath, ConsentValueName, ConsentAllow);
+            return val != null && string.Equals(val.ToString(), "Deny", StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool ToggleCamera()
@@ -283,81 +301,16 @@ namespace BSCustomClevoController.Utility
 
                 try
                 {
-                    SP_DEVINFO_DATA devInfoData = new SP_DEVINFO_DATA { cbSize = Marshal.SizeOf(typeof(SP_DEVINFO_DATA)) };
+                    SpDevInfoData devInfoData = new SpDevInfoData { cbSize = Marshal.SizeOf(typeof(SpDevInfoData)) };
                     uint index = 0;
 
                     while (SetupDiEnumDeviceInfo(hDevInfo, index, ref devInfoData))
                     {
                         index++;
-
-                        StringBuilder instanceIdBuf = new StringBuilder(512);
-                        string instanceId = SetupDiGetDeviceInstanceId(hDevInfo, ref devInfoData, instanceIdBuf, instanceIdBuf.Capacity, out _)
-                            ? instanceIdBuf.ToString()
-                            : string.Empty;
-
-                        if (instanceIdFilters != null && instanceIdFilters.Length > 0)
+                        string instanceId = ReadDeviceInstanceId(hDevInfo, ref devInfoData);
+                        if (MatchesAnyInstanceFilter(instanceId, instanceIdFilters))
                         {
-                            bool matches = false;
-                            foreach (string filter in instanceIdFilters)
-                            {
-                                if (!string.IsNullOrEmpty(instanceId) && instanceId.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
-                                {
-                                    matches = true;
-                                    break;
-                                }
-                            }
-                            if (!matches) continue;
-                        }
-
-                        SP_PROPCHANGE_PARAMS pcp = new SP_PROPCHANGE_PARAMS
-                        {
-                            ClassInstallHeader = new SP_CLASSINSTALL_HEADER
-                            {
-                                cbSize = Marshal.SizeOf(typeof(SP_CLASSINSTALL_HEADER)),
-                                InstallFunction = (int)DIF_PROPERTYCHANGE
-                            },
-                            StateChange = enable ? (int)DICS_ENABLE : (int)DICS_DISABLE,
-                            Scope = (int)DICS_FLAG_GLOBAL,
-                            HwProfile = 0
-                        };
-
-                        int pcpSize = Marshal.SizeOf(typeof(SP_PROPCHANGE_PARAMS));
-                        if (!SetupDiSetClassInstallParams(hDevInfo, ref devInfoData, ref pcp, pcpSize))
-                        {
-                            pcp.Scope = (int)DICS_FLAG_CONFIGSPECIFIC;
-                            SetupDiSetClassInstallParams(hDevInfo, ref devInfoData, ref pcp, pcpSize);
-                        }
-
-                        SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, hDevInfo, ref devInfoData);
-
-                        if (IsSafeDeviceInstanceId(instanceId))
-                        {
-                            try
-                            {
-                                string cmd = enable ? "Enable-PnpDevice" : "Disable-PnpDevice";
-                                ProcessRunner.Run(
-                                    ProcessRunner.ResolveSystemTool("powershell.exe"),
-                                    $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{cmd} -InstanceId '{instanceId}' -Confirm:$false -ErrorAction SilentlyContinue\"",
-                                    3000,
-                                    out _);
-                            }
-                            catch (Exception ex)
-                            {
-                                AppLogger.Log("SystemPreferences.SetDeviceEnabled.Ps", ex);
-                            }
-
-                            try
-                            {
-                                ProcessRunner.Run(
-                                    ProcessRunner.ResolveSystemTool("pnputil.exe"),
-                                    (enable ? "/enable-device \"" : "/disable-device \"") + instanceId + "\"",
-                                    2000,
-                                    out _);
-                            }
-                            catch (Exception ex)
-                            {
-                                AppLogger.Log("SystemPreferences.SetDeviceEnabled.PnpUtil", ex);
-                            }
+                            ApplyDeviceEnableChange(hDevInfo, ref devInfoData, instanceId, enable);
                         }
                     }
                 }
@@ -369,6 +322,83 @@ namespace BSCustomClevoController.Utility
             catch (Exception ex)
             {
                 AppLogger.Log("SystemPreferences.SetDeviceEnabled", ex);
+            }
+        }
+
+        private static string ReadDeviceInstanceId(IntPtr hDevInfo, ref SpDevInfoData devInfoData)
+        {
+            StringBuilder instanceIdBuf = new StringBuilder(512);
+            return SetupDiGetDeviceInstanceId(hDevInfo, ref devInfoData, instanceIdBuf, instanceIdBuf.Capacity, out _)
+                ? instanceIdBuf.ToString()
+                : string.Empty;
+        }
+
+        private static bool MatchesAnyInstanceFilter(string instanceId, string[] instanceIdFilters)
+        {
+            if (instanceIdFilters == null || instanceIdFilters.Length == 0)
+            {
+                return true;
+            }
+            if (string.IsNullOrEmpty(instanceId))
+            {
+                return false;
+            }
+            return Array.Exists(instanceIdFilters, filter => instanceId.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static void ApplyDeviceEnableChange(IntPtr hDevInfo, ref SpDevInfoData devInfoData, string instanceId, bool enable)
+        {
+            SpPropChangeParams pcp = new SpPropChangeParams
+            {
+                ClassInstallHeader = new SpClassInstallHeader
+                {
+                    cbSize = Marshal.SizeOf(typeof(SpClassInstallHeader)),
+                    InstallFunction = (int)DIF_PROPERTYCHANGE
+                },
+                StateChange = enable ? (int)DICS_ENABLE : (int)DICS_DISABLE,
+                Scope = (int)DICS_FLAG_GLOBAL,
+                HwProfile = 0
+            };
+
+            int pcpSize = Marshal.SizeOf(typeof(SpPropChangeParams));
+            if (!SetupDiSetClassInstallParams(hDevInfo, ref devInfoData, ref pcp, pcpSize))
+            {
+                pcp.Scope = (int)DICS_FLAG_CONFIGSPECIFIC;
+                SetupDiSetClassInstallParams(hDevInfo, ref devInfoData, ref pcp, pcpSize);
+            }
+
+            SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, hDevInfo, ref devInfoData);
+
+            if (!IsSafeDeviceInstanceId(instanceId))
+            {
+                return;
+            }
+
+            try
+            {
+                string cmd = enable ? "Enable-PnpDevice" : "Disable-PnpDevice";
+                ProcessRunner.Run(
+                    ProcessRunner.ResolveSystemTool("powershell.exe"),
+                    $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"{cmd} -InstanceId '{instanceId}' -Confirm:$false -ErrorAction SilentlyContinue\"",
+                    3000,
+                    out _);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("SystemPreferences.SetDeviceEnabled.Ps", ex);
+            }
+
+            try
+            {
+                ProcessRunner.Run(
+                    ProcessRunner.ResolveSystemTool("pnputil.exe"),
+                    (enable ? "/enable-device \"" : "/disable-device \"") + instanceId + "\"",
+                    2000,
+                    out _);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("SystemPreferences.SetDeviceEnabled.PnpUtil", ex);
             }
         }
 
@@ -457,12 +487,12 @@ namespace BSCustomClevoController.Utility
                 AppLogger.Log("SystemPreferences.SetCameraHardwareState.Dev", ex);
             }
 
-            string regValue = enable ? "Allow" : "Deny";
+            string regValue = enable ? ConsentAllow : "Deny";
             try
             {
                 Registry.SetValue(
                     @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam",
-                    "Value",
+                    ConsentValueName,
                     regValue,
                     RegistryValueKind.String);
             }
@@ -473,8 +503,8 @@ namespace BSCustomClevoController.Utility
 
             try
             {
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam", "Value", regValue, RegistryValueKind.String);
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam\NonPackaged", "Value", regValue, RegistryValueKind.String);
+                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam", ConsentValueName, regValue, RegistryValueKind.String);
+                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam\NonPackaged", ConsentValueName, regValue, RegistryValueKind.String);
 
                 using (RegistryKey consentKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam", true))
                 {
@@ -486,7 +516,7 @@ namespace BSCustomClevoController.Utility
                             {
                                 using (RegistryKey subKey = consentKey.OpenSubKey(subName, true))
                                 {
-                                    subKey?.SetValue("Value", regValue, RegistryValueKind.String);
+                                    subKey?.SetValue(ConsentValueName, regValue, RegistryValueKind.String);
                                 }
                             }
                             catch (Exception ex)
@@ -534,7 +564,7 @@ namespace BSCustomClevoController.Utility
             IMMDeviceCollection collection = null;
             try
             {
-                enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+                enumerator = (object)new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
                 if (enumerator != null &&
                     enumerator.EnumAudioEndpoints(1, 1, out collection) == 0 &&
                     collection != null)
@@ -577,7 +607,7 @@ namespace BSCustomClevoController.Utility
             {
                 string val = Registry.GetValue(
                     @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone",
-                    "Value",
+                    ConsentValueName,
                     null) as string;
                 if (!string.IsNullOrEmpty(val))
                 {
@@ -627,7 +657,7 @@ namespace BSCustomClevoController.Utility
             IMMDeviceCollection collection = null;
             try
             {
-                enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+                enumerator = (object)new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
                 if (enumerator != null &&
                     enumerator.EnumAudioEndpoints(1, 1, out collection) == 0 &&
                     collection != null)
@@ -666,11 +696,11 @@ namespace BSCustomClevoController.Utility
                 ReleaseComObjectSafe(enumerator);
             }
 
-            string regValue = enable ? "Allow" : "Deny";
+            string regValue = enable ? ConsentAllow : "Deny";
             try
             {
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone", "Value", regValue, RegistryValueKind.String);
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged", "Value", regValue, RegistryValueKind.String);
+                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone", ConsentValueName, regValue, RegistryValueKind.String);
+                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged", ConsentValueName, regValue, RegistryValueKind.String);
             }
             catch (Exception ex)
             {
@@ -679,7 +709,7 @@ namespace BSCustomClevoController.Utility
 
             try
             {
-                Registry.SetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone", "Value", regValue, RegistryValueKind.String);
+                Registry.SetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone", ConsentValueName, regValue, RegistryValueKind.String);
             }
             catch
             {

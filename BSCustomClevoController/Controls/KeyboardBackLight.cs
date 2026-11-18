@@ -8,12 +8,12 @@ namespace BSCustomClevoController.Controls
 {
     public struct KeyboardStatus
     {
-        public Color BackLight;
-        public KeyboardEffect Effect;
-        public bool LightState;
-        public bool BootEffect;
-        public int SleepSecond;
-        public bool SleepState;
+        public Color BackLight { get; set; }
+        public KeyboardEffect Effect { get; set; }
+        public bool LightState { get; set; }
+        public bool BootEffect { get; set; }
+        public int SleepSecond { get; set; }
+        public bool SleepState { get; set; }
     }
 
     public class KeyboardHardwareCapabilities
@@ -77,6 +77,9 @@ namespace BSCustomClevoController.Controls
         public static event Action BacklightChanged;
 
         private const string AppRegistryKey = @"HKEY_CURRENT_USER\Software\BSCustomClevoController";
+        private const string KbBrightnessValueName = "KbBrightness";
+        private const string KbLightStateValueName = "KbLightState";
+        private const string KbUserSleepTimeoutValueName = "KbUserSleepTimeout";
         private static readonly string[] ZoneControlCenterSubKeys = new string[] { "Left", "Center", "Right" };
         private static readonly byte[] BrightnessStepValues = new byte[] { 0, 64, 128, 192, 255 };
 
@@ -127,86 +130,13 @@ namespace BSCustomClevoController.Controls
                 int cmd7A = 0;
                 InsydeDriver.GetDCHU_Data_Integer(0x7A, ref cmd7A);
 
-                byte rawType = 0;
-                InsydeDriver.ReadAppSettings(2, 4, 1, ref rawType);
-                if (rawType == 0)
-                {
-                    byte[] pkg13 = new byte[256];
-                    InsydeDriver.GetDCHU_Data_Buffer(13, ref pkg13[0]);
-                    byte wmiKbType = pkg13[15];
-                    if (wmiKbType == 3 || wmiKbType == 19 || wmiKbType == 35 || wmiKbType == 51 || wmiKbType == 243)
-                    {
-                        rawType = 3;
-                    }
-                    else if (wmiKbType != 0)
-                    {
-                        rawType = wmiKbType;
-                    }
-                }
-                if (rawType == 0)
-                {
-                    object regKbType = Registry.GetValue(@"HKEY_CURRENT_USER\Software\ControlCenter2.0\LED", "KBType", null);
-                    if (regKbType != null)
-                    {
-                        int parsedKbType = Convert.ToInt32(regKbType);
-                        if (parsedKbType > 0 && parsedKbType <= 255)
-                        {
-                            rawType = (byte)parsedKbType;
-                        }
-                    }
-                }
+                byte rawType = ResolveRawKeyboardType();
                 caps.RawKbType = rawType;
-
-                bool isWhiteOnly = (cmd52 & 0x40000000) != 0;
-                bool is3ZoneRgb = (cmd52 & 0x00400000) != 0;
-                bool isWhite5Levels = (cmd7A & 0x4000) != 0;
-                bool noSupportHw = (cmd96 & 1) == 1;
-                bool hasPerKeyBit = (cmd16 & 8) == 8;
-                bool hasRgbBit = (cmd16 & 16) == 16;
-
                 caps.SupportsIteDirectHid = IteHidController.IsDevicePresent;
                 caps.SupportsLightBar = IteHidController.IsLightBarPresent;
                 caps.SupportsBootEffectOverride = true;
 
-                if (isWhiteOnly || rawType == 1 || (!hasRgbBit && !hasPerKeyBit && !is3ZoneRgb && rawType != 0 && rawType != 2 && rawType != 3 && rawType != 6 && rawType != 22))
-                {
-                    caps.SupportsBacklight = true;
-                    caps.SupportsRgb = false;
-                    caps.SupportsHardwareEffects = false;
-                    caps.SupportsMultiZone = false;
-                    caps.ZoneCount = 1;
-                    caps.SupportsIteDirectHid = false;
-                    caps.MaxBrightnessLevels = isWhite5Levels ? 5 : 2;
-                    caps.KeyboardTypeName = isWhite5Levels ? "Single-Color White (5-Level)" : "Single-Color White (2-Level)";
-                }
-                else if (rawType == 0 || rawType == 6 || rawType == 22)
-                {
-                    caps.SupportsBacklight = true;
-                    caps.SupportsRgb = true;
-                    caps.SupportsMultiZone = false;
-                    caps.ZoneCount = 1;
-                    caps.SupportsHardwareEffects = false;
-                    caps.SupportsIteDirectHid = false;
-                    caps.KeyboardTypeName = "Single-Line RGB (1-Zone)";
-                }
-                else if (rawType == 3 || hasPerKeyBit)
-                {
-                    caps.SupportsBacklight = true;
-                    caps.SupportsRgb = true;
-                    caps.SupportsMultiZone = true;
-                    caps.ZoneCount = 3;
-                    caps.SupportsHardwareEffects = !noSupportHw || caps.SupportsIteDirectHid;
-                    caps.KeyboardTypeName = caps.SupportsIteDirectHid ? "Multi-Line RGB (ITE Per-Key)" : "Multi-Line RGB (Per-Key)";
-                }
-                else
-                {
-                    caps.SupportsBacklight = true;
-                    caps.SupportsRgb = true;
-                    caps.SupportsMultiZone = true;
-                    caps.ZoneCount = 3;
-                    caps.SupportsHardwareEffects = !noSupportHw;
-                    caps.KeyboardTypeName = "Multi-Line RGB (3-Zone)";
-                }
+                ApplyCapabilityProfile(caps, rawType, cmd16, cmd96, cmd52, cmd7A);
             }
             catch (Exception ex)
             {
@@ -226,6 +156,101 @@ namespace BSCustomClevoController.Controls
             return caps;
         }
 
+        private static byte ResolveRawKeyboardType()
+        {
+            byte rawType = 0;
+            InsydeDriver.ReadAppSettings(2, 4, 1, ref rawType);
+            if (rawType == 0)
+            {
+                byte[] pkg13 = new byte[256];
+                InsydeDriver.GetDCHU_Data_Buffer(13, ref pkg13[0]);
+                byte wmiKbType = pkg13[15];
+                if (wmiKbType == 3 || wmiKbType == 19 || wmiKbType == 35 || wmiKbType == 51 || wmiKbType == 243)
+                {
+                    rawType = 3;
+                }
+                else if (wmiKbType != 0)
+                {
+                    rawType = wmiKbType;
+                }
+            }
+
+            if (rawType == 0)
+            {
+                object regKbType = Registry.GetValue(@"HKEY_CURRENT_USER\Software\ControlCenter2.0\LED", "KBType", null);
+                if (regKbType != null)
+                {
+                    int parsedKbType = Convert.ToInt32(regKbType);
+                    if (parsedKbType > 0 && parsedKbType <= 255)
+                    {
+                        rawType = (byte)parsedKbType;
+                    }
+                }
+            }
+
+            return rawType;
+        }
+
+        private static void ApplyCapabilityProfile(
+            KeyboardHardwareCapabilities caps,
+            byte rawType,
+            int cmd16,
+            int cmd96,
+            int cmd52,
+            int cmd7A)
+        {
+            bool isWhiteOnly = (cmd52 & 0x40000000) != 0;
+            bool is3ZoneRgb = (cmd52 & 0x00400000) != 0;
+            bool isWhite5Levels = (cmd7A & 0x4000) != 0;
+            bool noSupportHw = (cmd96 & 1) == 1;
+            bool hasPerKeyBit = (cmd16 & 8) == 8;
+            bool hasRgbBit = (cmd16 & 16) == 16;
+
+            bool isKnownRgbRaw = rawType == 0 || rawType == 2 || rawType == 3 || rawType == 6 || rawType == 22;
+            if (isWhiteOnly || rawType == 1 || (!hasRgbBit && !hasPerKeyBit && !is3ZoneRgb && !isKnownRgbRaw))
+            {
+                caps.SupportsBacklight = true;
+                caps.SupportsRgb = false;
+                caps.SupportsHardwareEffects = false;
+                caps.SupportsMultiZone = false;
+                caps.ZoneCount = 1;
+                caps.SupportsIteDirectHid = false;
+                caps.MaxBrightnessLevels = isWhite5Levels ? 5 : 2;
+                caps.KeyboardTypeName = isWhite5Levels ? "Single-Color White (5-Level)" : "Single-Color White (2-Level)";
+                return;
+            }
+
+            if (rawType == 0 || rawType == 6 || rawType == 22)
+            {
+                caps.SupportsBacklight = true;
+                caps.SupportsRgb = true;
+                caps.SupportsMultiZone = false;
+                caps.ZoneCount = 1;
+                caps.SupportsHardwareEffects = false;
+                caps.SupportsIteDirectHid = false;
+                caps.KeyboardTypeName = "Single-Line RGB (1-Zone)";
+                return;
+            }
+
+            if (rawType == 3 || hasPerKeyBit)
+            {
+                caps.SupportsBacklight = true;
+                caps.SupportsRgb = true;
+                caps.SupportsMultiZone = true;
+                caps.ZoneCount = 3;
+                caps.SupportsHardwareEffects = !noSupportHw || caps.SupportsIteDirectHid;
+                caps.KeyboardTypeName = caps.SupportsIteDirectHid ? "Multi-Line RGB (ITE Per-Key)" : "Multi-Line RGB (Per-Key)";
+                return;
+            }
+
+            caps.SupportsBacklight = true;
+            caps.SupportsRgb = true;
+            caps.SupportsMultiZone = true;
+            caps.ZoneCount = 3;
+            caps.SupportsHardwareEffects = !noSupportHw;
+            caps.KeyboardTypeName = "Multi-Line RGB (3-Zone)";
+        }
+
         public static KeyboardStatus GetStatus()
         {
             try
@@ -242,125 +267,13 @@ namespace BSCustomClevoController.Controls
                 InsydeDriver.ReadAppSettings(2, 7, 1, ref booteffect);
                 byte[] sleep = new byte[3];
                 InsydeDriver.ReadAppSettings(2, 37, 3, ref sleep[0]);
-                int sleepsec = sleep[0] * 3600 + sleep[1] * 60 + sleep[2];
                 byte sleepstatus = 0;
                 InsydeDriver.ReadAppSettings(2, 36, 1, ref sleepstatus);
 
-                byte displayBrightness = 255;
-                if (rawBrightness <= 4)
-                {
-                    displayBrightness = (byte)Math.Min(255, (int)rawBrightness * 64);
-                    if (displayBrightness == 0 && status != 0)
-                    {
-                        displayBrightness = 255;
-                    }
-                }
-                else
-                {
-                    displayBrightness = rawBrightness;
-                }
-
-                object regBri = Registry.GetValue(AppRegistryKey, "KbBrightness", null);
-                if (regBri is int intBri)
-                {
-                    displayBrightness = (byte)Math.Max(0, Math.Min(255, intBri));
-                }
-
-                object regLight = Registry.GetValue(AppRegistryKey, "KbLightState", null);
-                if (regLight is int intLight)
-                {
-                    status = (byte)(intLight != 0 ? 1 : 0);
-                }
-                else
-                {
-                    status = 1;
-                    TurnOn();
-                    SetBrightness(255);
-                    displayBrightness = 255;
-                }
-
-                object regColor = Registry.GetValue(AppRegistryKey, "KbColor", null);
-                if (regColor is int intCol)
-                {
-                    colour[0] = (byte)((intCol >> 16) & 0xFF);
-                    colour[1] = (byte)((intCol >> 8) & 0xFF);
-                    colour[2] = (byte)(intCol & 0xFF);
-                }
-                else
-                {
-                    colour[0] = 0;
-                    colour[1] = 0;
-                    colour[2] = 255;
-                    SetColour(0, 0, 255);
-                }
-
-                object regUserSleep = Registry.GetValue(AppRegistryKey, "KbUserSleepTimeout", null);
-                if (regUserSleep is int userSleep && userSleep > 0)
-                {
-                    sleepsec = userSleep;
-                    sleepstatus = 1;
-                }
-                else
-                {
-                    object regSleep = Registry.GetValue(AppRegistryKey, "KbSleepTimer", null);
-                    if (regSleep is int intSleep && intSleep > 0)
-                    {
-                        sleepsec = intSleep;
-                        sleepstatus = 1;
-                        try
-                        {
-                            Registry.SetValue(AppRegistryKey, "KbUserSleepTimeout", intSleep, RegistryValueKind.DWord);
-                        }
-                        catch (Exception ex)
-                        {
-                            AppLogger.Log("KeyboardBackLight.GetStatus.SleepReg", ex);
-                        }
-                    }
-                    else
-                    {
-                        sleepsec = 30;
-                        sleepstatus = 1;
-                        SetSleepTimer(30);
-                    }
-                }
-
-                KeyboardEffect effect = null;
-                object regEffectActive = Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
-                if (regEffectActive is int intActive)
-                {
-                    if (intActive != 0)
-                    {
-                        object regId = Registry.GetValue(AppRegistryKey, "KbEffectId", null);
-                        object regUniq = Registry.GetValue(AppRegistryKey, "KbEffectUniqId", null);
-                        object regName = Registry.GetValue(AppRegistryKey, "KbEffectName", null);
-                        if (regId is int idVal)
-                        {
-                            byte uniqVal = regUniq is int u ? (byte)u : (byte)0;
-                            string nameVal = regName as string;
-                            effect = KeyboardEffect.LookUpEffect(idVal, uniqVal, nameVal);
-                        }
-                    }
-                }
-                else
-                {
-                    effect = KeyboardEffect.LookUpEffect(mode);
-                }
-
-                if (effect != null && !effect.IsSoftware && !GetCapabilities().SupportsHardwareEffects)
-                {
-                    if (effect.Id == 2)
-                    {
-                        effect = KeyboardEffects.SoftwareBreath;
-                    }
-                    else if (effect.Id == 3)
-                    {
-                        effect = KeyboardEffects.SoftwareCycle;
-                    }
-                    else
-                    {
-                        effect = KeyboardEffects.SoftwareBreath;
-                    }
-                }
+                byte displayBrightness = ResolveStatusBrightness(rawBrightness, status, out status);
+                ResolveStatusColor(colour);
+                int sleepsec = ResolveStatusSleep(sleep, ref sleepstatus);
+                KeyboardEffect effect = ResolveStatusEffect(mode);
 
                 _lastTargetBrightness = displayBrightness;
                 return new KeyboardStatus()
@@ -388,11 +301,126 @@ namespace BSCustomClevoController.Controls
             }
         }
 
+        private static byte ResolveStatusBrightness(byte rawBrightness, byte currentStatus, out byte resolvedStatus)
+        {
+            byte displayBrightness = rawBrightness <= 4
+                ? (byte)Math.Min(255, (int)rawBrightness * 64)
+                : rawBrightness;
+
+            if (displayBrightness == 0 && currentStatus != 0)
+            {
+                displayBrightness = 255;
+            }
+
+            object regBri = Registry.GetValue(AppRegistryKey, KbBrightnessValueName, null);
+            if (regBri is int intBri)
+            {
+                displayBrightness = (byte)Math.Max(0, Math.Min(255, intBri));
+            }
+
+            object regLight = Registry.GetValue(AppRegistryKey, KbLightStateValueName, null);
+            if (regLight is int intLight)
+            {
+                resolvedStatus = (byte)(intLight != 0 ? 1 : 0);
+            }
+            else
+            {
+                resolvedStatus = 1;
+                TurnOn();
+                SetBrightness(255);
+                displayBrightness = 255;
+            }
+
+            return displayBrightness;
+        }
+
+        private static void ResolveStatusColor(byte[] colour)
+        {
+            object regColor = Registry.GetValue(AppRegistryKey, "KbColor", null);
+            if (regColor is int intCol)
+            {
+                colour[0] = (byte)((intCol >> 16) & 0xFF);
+                colour[1] = (byte)((intCol >> 8) & 0xFF);
+                colour[2] = (byte)(intCol & 0xFF);
+                return;
+            }
+
+            colour[0] = 0;
+            colour[1] = 0;
+            colour[2] = 255;
+            SetColour(0, 0, 255);
+        }
+
+        private static int ResolveStatusSleep(byte[] sleep, ref byte sleepstatus)
+        {
+            object regUserSleep = Registry.GetValue(AppRegistryKey, KbUserSleepTimeoutValueName, null);
+            if (regUserSleep is int userSleep && userSleep > 0)
+            {
+                sleepstatus = 1;
+                return userSleep;
+            }
+
+            object regSleep = Registry.GetValue(AppRegistryKey, "KbSleepTimer", null);
+            if (regSleep is int intSleep && intSleep > 0)
+            {
+                sleepstatus = 1;
+                try
+                {
+                    Registry.SetValue(AppRegistryKey, KbUserSleepTimeoutValueName, intSleep, RegistryValueKind.DWord);
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Log("KeyboardBackLight.GetStatus.SleepReg", ex);
+                }
+                return intSleep;
+            }
+
+            if (sleepstatus != 0)
+            {
+                return (sleep[0] * 3600) + (sleep[1] * 60) + sleep[2];
+            }
+
+            sleepstatus = 1;
+            SetSleepTimer(30);
+            return 30;
+        }
+
+        private static KeyboardEffect ResolveStatusEffect(byte mode)
+        {
+            KeyboardEffect effect = null;
+            object regEffectActive = Registry.GetValue(AppRegistryKey, "KbEffectActive", null);
+            if (regEffectActive is int intActive)
+            {
+                if (intActive != 0)
+                {
+                    object regId = Registry.GetValue(AppRegistryKey, "KbEffectId", null);
+                    object regUniq = Registry.GetValue(AppRegistryKey, "KbEffectUniqId", null);
+                    object regName = Registry.GetValue(AppRegistryKey, "KbEffectName", null);
+                    if (regId is int idVal)
+                    {
+                        byte uniqVal = regUniq is int u ? (byte)u : (byte)0;
+                        effect = KeyboardEffect.LookUpEffect(idVal, uniqVal, regName as string);
+                    }
+                }
+            }
+            else
+            {
+                effect = KeyboardEffect.LookUpEffect(mode);
+            }
+
+            if (effect != null && !effect.IsSoftware && !GetCapabilities().SupportsHardwareEffects)
+            {
+                return effect.Id == 3 ? KeyboardEffects.SoftwareCycle : KeyboardEffects.SoftwareBreath;
+            }
+
+            return effect;
+        }
+
         public static byte GetCurrentTargetBrightness()
         {
             try
             {
-                object regBri = Registry.GetValue(AppRegistryKey, "KbBrightness", null);
+                object regBri = Registry.GetValue(AppRegistryKey, KbBrightnessValueName, null);
                 if (regBri is int intBri)
                 {
                     byte clamped = (byte)Math.Max(1, Math.Min(255, intBri));
@@ -430,7 +458,7 @@ namespace BSCustomClevoController.Controls
             try
             {
                 _lastTargetBrightness = value;
-                KeyboardEffects.MaxBrightness = value;
+                KeyboardEffects.SetMaxBrightness(value);
 
                 if (!KeyboardEffects.IsBreathingSoftwareEffectRunning())
                 {
@@ -440,7 +468,7 @@ namespace BSCustomClevoController.Controls
                 InsydeDriver.WriteAppSettings(2, 35, 1, ref value);
                 try
                 {
-                    Registry.SetValue(AppRegistryKey, "KbBrightness", (int)value, RegistryValueKind.DWord);
+                    Registry.SetValue(AppRegistryKey, KbBrightnessValueName, (int)value, RegistryValueKind.DWord);
                 }
                 catch (Exception ex)
                 {
@@ -676,7 +704,7 @@ namespace BSCustomClevoController.Controls
             {
                 byte targetBrightness = brightnessOverride ?? GetCurrentTargetBrightness();
                 _lastTargetBrightness = targetBrightness;
-                KeyboardEffects.MaxBrightness = targetBrightness;
+                KeyboardEffects.SetMaxBrightness(targetBrightness);
 
                 if (mode.IsIteHardwareEffect && IteHidController.IsDevicePresent)
                 {
@@ -717,7 +745,7 @@ namespace BSCustomClevoController.Controls
                 InsydeDriver.WriteAppSettings(2, 84, 1, ref val);
                 try
                 {
-                    Registry.SetValue(AppRegistryKey, "KbLightState", 0, RegistryValueKind.DWord);
+                    Registry.SetValue(AppRegistryKey, KbLightStateValueName, 0, RegistryValueKind.DWord);
                 }
                 catch (Exception ex)
                 {
@@ -750,7 +778,7 @@ namespace BSCustomClevoController.Controls
                 InsydeDriver.WriteAppSettings(2, 84, 1, ref val);
                 try
                 {
-                    Registry.SetValue(AppRegistryKey, "KbLightState", 1, RegistryValueKind.DWord);
+                    Registry.SetValue(AppRegistryKey, KbLightStateValueName, 1, RegistryValueKind.DWord);
                 }
                 catch (Exception ex)
                 {
@@ -800,59 +828,74 @@ namespace BSCustomClevoController.Controls
 
             if (shouldStartEffect && savedEffect != null)
             {
-                if (savedEffect.IsSoftware)
-                {
-                    if (caps.SupportsRgb)
-                    {
-                        if (savedEffect.Id == 8)
-                        {
-                            SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
-                        }
-                        else if (savedEffect.Id == 9 || savedEffect.Id == 10)
-                        {
-                            SetColourRealtime(255, 0, 0);
-                        }
-                    }
-
-                    EnsurePowerEnabledIfNeeded(zoneState, appLightState, needsStaticMode: caps.SupportsRgb && appMode != 8);
-                    SyncPowerAndBrightnessMetadata(targetBrightness);
-                    UiDispatcher.Post(() => savedEffect.SetEffect());
-                }
-                else
-                {
-                    if (!savedEffect.IsIteHardwareEffect && zoneState == 0)
-                    {
-                        InsydeDriver.SetDCHU_Data(103, new byte[4] { 7, 0xB0, 7, 224 }, 4);
-                    }
-
-                    // Skip TurnOn() static mode so hardware effects do not flash static color first.
-                    SetMode(savedEffect, targetBrightness);
-                    SyncPowerAndBrightnessMetadata(targetBrightness);
-                }
-
+                ApplySavedEffectOnStartup(kbStatus, caps, savedEffect, targetBrightness, zoneState, appLightState, appMode);
                 SetSleepTimer(kbStatus.SleepSecond);
                 return;
             }
 
             if (caps.SupportsRgb)
             {
-                if (IsPerZoneColorActive())
-                {
-                    ApplyCurrentStaticColorsRealtime();
-                    Color z0 = GetZoneColour(0);
-                    SyncStaticColorMetadata(z0.R, z0.G, z0.B);
-                }
-                else
-                {
-                    SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
-                    SyncStaticColorMetadata(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
-                }
+                ApplySavedStaticColorsOnStartup(kbStatus);
             }
 
             EnsurePowerEnabledIfNeeded(zoneState, appLightState, needsStaticMode: caps.SupportsRgb && appMode != 8);
             SetBrightnessRealtime(targetBrightness);
             SyncPowerAndBrightnessMetadata(targetBrightness);
             SetSleepTimer(kbStatus.SleepSecond);
+        }
+
+        private static void ApplySavedEffectOnStartup(
+            KeyboardStatus kbStatus,
+            KeyboardHardwareCapabilities caps,
+            KeyboardEffect savedEffect,
+            byte targetBrightness,
+            byte zoneState,
+            byte appLightState,
+            byte appMode)
+        {
+            if (savedEffect.IsSoftware)
+            {
+                if (caps.SupportsRgb)
+                {
+                    if (savedEffect.Id == 8)
+                    {
+                        SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
+                    }
+                    else if (savedEffect.Id == 9 || savedEffect.Id == 10)
+                    {
+                        SetColourRealtime(255, 0, 0);
+                    }
+                }
+
+                EnsurePowerEnabledIfNeeded(zoneState, appLightState, needsStaticMode: caps.SupportsRgb && appMode != 8);
+                SyncPowerAndBrightnessMetadata(targetBrightness);
+                UiDispatcher.Post(() => savedEffect.SetEffect());
+                return;
+            }
+
+            if (!savedEffect.IsIteHardwareEffect && zoneState == 0)
+            {
+                InsydeDriver.SetDCHU_Data(103, new byte[4] { 7, 0xB0, 7, 224 }, 4);
+            }
+
+            // Skip TurnOn() static mode so hardware effects do not flash static color first.
+            SetMode(savedEffect, targetBrightness);
+            SyncPowerAndBrightnessMetadata(targetBrightness);
+        }
+
+        private static void ApplySavedStaticColorsOnStartup(KeyboardStatus kbStatus)
+        {
+            if (IsPerZoneColorActive())
+            {
+                ApplyCurrentStaticColorsRealtime();
+                Color z0 = GetZoneColour(0);
+                SyncStaticColorMetadata(z0.R, z0.G, z0.B);
+            }
+            else
+            {
+                SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
+                SyncStaticColorMetadata(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
+            }
         }
 
         private static void EnsurePowerEnabledIfNeeded(byte zoneState, byte appLightState, bool needsStaticMode)
@@ -878,7 +921,7 @@ namespace BSCustomClevoController.Controls
         private static void SyncPowerAndBrightnessMetadata(byte brightness)
         {
             _lastTargetBrightness = brightness;
-            KeyboardEffects.MaxBrightness = brightness;
+            KeyboardEffects.SetMaxBrightness(brightness);
 
             byte bri = brightness;
             InsydeDriver.WriteAppSettings(2, 35, 1, ref bri);
@@ -887,8 +930,8 @@ namespace BSCustomClevoController.Controls
             InsydeDriver.WriteAppSettings(2, 84, 1, ref one);
             try
             {
-                Registry.SetValue(AppRegistryKey, "KbBrightness", (int)brightness, RegistryValueKind.DWord);
-                Registry.SetValue(AppRegistryKey, "KbLightState", 1, RegistryValueKind.DWord);
+                Registry.SetValue(AppRegistryKey, KbBrightnessValueName, (int)brightness, RegistryValueKind.DWord);
+                Registry.SetValue(AppRegistryKey, KbLightStateValueName, 1, RegistryValueKind.DWord);
             }
             catch (Exception ex)
             {
@@ -930,7 +973,7 @@ namespace BSCustomClevoController.Controls
                 try
                 {
                     Registry.SetValue(AppRegistryKey, "KbSleepTimer", value, RegistryValueKind.DWord);
-                    Registry.SetValue(AppRegistryKey, "KbUserSleepTimeout", value, RegistryValueKind.DWord);
+                    Registry.SetValue(AppRegistryKey, KbUserSleepTimeoutValueName, value, RegistryValueKind.DWord);
                 }
                 catch (Exception ex)
                 {
@@ -955,7 +998,7 @@ namespace BSCustomClevoController.Controls
                     try
                     {
                         Registry.SetValue(AppRegistryKey, "KbSleepTimer", 0, RegistryValueKind.DWord);
-                        Registry.SetValue(AppRegistryKey, "KbUserSleepTimeout", 0, RegistryValueKind.DWord);
+                        Registry.SetValue(AppRegistryKey, KbUserSleepTimeoutValueName, 0, RegistryValueKind.DWord);
                     }
                     catch (Exception ex)
                     {
