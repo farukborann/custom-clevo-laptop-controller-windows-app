@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.Win32;
 
 namespace BSCustomClevoController.Utility
 {
@@ -38,29 +39,42 @@ namespace BSCustomClevoController.Utility
             return InsydeDriver.SetDCHU_Data(command, buffer, length);
         }
 
+        private static readonly object CacheLock = new object();
         private static Dictionary<string, bool> _cachedMap;
 
         public static bool IsSupported(string rawKey)
         {
-            if (_cachedMap == null)
+            if (string.IsNullOrEmpty(rawKey))
             {
-                var list = Check();
-                _cachedMap = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-                foreach (var item in list)
-                {
-                    if (!string.IsNullOrEmpty(item.RawKey))
-                    {
-                        _cachedMap[item.RawKey] = item.IsSupported;
-                    }
-                }
+                return false;
             }
 
-            return _cachedMap.TryGetValue(rawKey, out bool val) && val;
+            lock (CacheLock)
+            {
+                if (_cachedMap == null)
+                {
+                    var list = Check();
+                    var map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var item in list)
+                    {
+                        if (!string.IsNullOrEmpty(item.RawKey))
+                        {
+                            map[item.RawKey] = item.IsSupported;
+                        }
+                    }
+                    _cachedMap = map;
+                }
+
+                return _cachedMap.TryGetValue(rawKey, out bool val) && val;
+            }
         }
 
         public static void InvalidateCache()
         {
-            _cachedMap = null;
+            lock (CacheLock)
+            {
+                _cachedMap = null;
+            }
         }
 
         public static bool SetWMI(int command, uint data)
@@ -71,8 +85,9 @@ namespace BSCustomClevoController.Utility
                 int res = SetDCHU_Data(command, buffer, 4);
                 return res >= 0;
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Log("Capabilities.SetWMI", ex);
                 return false;
             }
         }
@@ -109,7 +124,7 @@ namespace BSCustomClevoController.Utility
                 if (Global.support_bit != null && Global.support_bit.MaxQ)
                     return true;
 
-                if (Global.RW_REG != null && Global.RW_REG.SupportMaxqFan)
+                if (Convert.ToBoolean(Registry.GetValue("HKEY_CURRENT_USER\\Software\\ControlCenter2.0\\EC\\", "SupportMaxQ_FAN", false)))
                     return true;
 
                 byte[] appData = Global.insyde.GetAPPData(4, 0, 256);

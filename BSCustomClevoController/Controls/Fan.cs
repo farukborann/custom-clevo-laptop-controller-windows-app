@@ -232,7 +232,7 @@ namespace BSCustomClevoController.Controls
 
                 rpm_CPU = ConvertTachToRpm(array[3] + (array[2] << 8));
                 percent_CPU = ConvertDutyToPercent(array[16]);
-                remote_CPU = Global.RW_REG != null ? Global.RW_REG.CalCPUTemp(Global.RW_REG.GetTDP(), array[18]) : array[18];
+                remote_CPU = array[18];
 
                 rpm_GPU = ConvertTachToRpm(array[5] + (array[4] << 8));
                 percent_GPU = ConvertDutyToPercent(array[19]);
@@ -302,6 +302,7 @@ namespace BSCustomClevoController.Controls
         {
             try
             {
+                offset = Math.Min((byte)100, offset);
                 int data = (int)Math.Round(255.0 * (offset / 100.0), 0);
                 Global.insyde.SetWMI(121, 14, (uint)data);
                 Global.insyde.SetAPPData(4, 7, 1, new byte[] { offset });
@@ -502,9 +503,10 @@ namespace BSCustomClevoController.Controls
             }
         }
 
-        private static int ComputeSlope(byte dStart, byte dEnd, byte tStart, byte tEnd)
+        internal static int ComputeSlope(byte dStart, byte dEnd, byte tStart, byte tEnd)
         {
-            return (int)Math.Round((dEnd - dStart) / (double)Math.Max(1, tEnd - tStart) * 2.55 * 16.0, 0);
+            int raw = (int)Math.Round((dEnd - dStart) / (double)Math.Max(1, tEnd - tStart) * 2.55 * 16.0, 0);
+            return Math.Max(0, Math.Min(65535, raw));
         }
 
         private static void WriteWmiFanSlopes(byte[] buffer, int baseOffset, FanInfo info)

@@ -374,7 +374,7 @@
                                             </StackPanel>
                                         </StackPanel>
                                         <Border x:Name="CpuOcBadge" Grid.Column="1" Background="#1B3E32" BorderBrush="{StaticResource Amoled.Success}" BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
-                                            <TextBlock x:Name="CpuOcBadgeText" Text="{DynamicResource Loc.ToolsCpuStockBadge}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Amoled.Success}" />
+                                            <TextBlock x:Name="CpuOcBadgeText" Text="{DynamicResource Loc.ToolsGpuStockBadge}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Amoled.Success}" />
                                         </Border>
                                     </Grid>
 
@@ -440,62 +440,6 @@
                                 </Grid>
                             </Border>
 
-                            <Border x:Name="CpuMultiplierOcCard" Style="{StaticResource SubCardStyle}" Padding="10,5" Margin="0,0,0,4" Opacity="0.55">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
-                                        <TextBlock Text="{DynamicResource Loc.ToolsCpuMultiplierOc}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
-                                        <TextBlock Text="{DynamicResource Loc.ToolsCpuMultiplierOcDesc}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Border x:Name="CpuMultiplierOcBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
-                                            <TextBlock Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
-                                        </Border>
-                                        <CheckBox x:Name="CpuMultiplierOcSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" IsEnabled="False" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-
-                            <Border x:Name="AllModeGpuOcCard" Style="{StaticResource SubCardStyle}" Padding="10,5" Margin="0,0,0,4" Opacity="0.55">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
-                                        <TextBlock Text="{DynamicResource Loc.ToolsAllModeGpuOc}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
-                                        <TextBlock Text="{DynamicResource Loc.ToolsAllModeGpuOcDesc}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Border x:Name="AllModeGpuOcBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
-                                            <TextBlock Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
-                                        </Border>
-                                        <CheckBox x:Name="AllModeGpuOcSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" IsEnabled="False" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-
-                            <Border x:Name="XmpCard" Style="{StaticResource SubCardStyle}" Padding="10,5" Margin="0,0,0,4" Opacity="0.55">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
-                                        <TextBlock Text="{DynamicResource Loc.ToolsXmp}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
-                                        <TextBlock Text="{DynamicResource Loc.ToolsXmpDesc}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Border x:Name="XmpBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
-                                            <TextBlock Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
-                                        </Border>
-                                        <CheckBox x:Name="XmpSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" IsEnabled="False" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

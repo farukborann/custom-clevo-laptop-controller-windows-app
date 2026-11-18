@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Threading;
 using BSCustomClevoController.Utility;
 
 namespace BSCustomClevoController.Controls
@@ -17,15 +16,17 @@ namespace BSCustomClevoController.Controls
 
         public bool IsIteHardwareEffect => IteAnimMode > 0;
 
-        private DispatcherTimer _timer;
-        public DispatcherTimer Timer
+        private IEffectTimer _timer;
+        public IEffectTimer Timer
         {
             get
             {
                 if (_timer == null && Func != null)
                 {
-                    _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Milliseconds > 0 ? Milliseconds : 16) };
-                    _timer.Tick += new EventHandler(Func);
+                    int intervalMs = Milliseconds > 0 ? Milliseconds : 16;
+                    _timer = UiDispatcher.CreateEffectTimer(
+                        TimeSpan.FromMilliseconds(intervalMs),
+                        (s, e) => Func?.Invoke(s, e));
                 }
                 return _timer;
             }
@@ -110,7 +111,6 @@ namespace BSCustomClevoController.Controls
 
         private static readonly Dictionary<string, string> EffectKeyMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { "Random", "KbEffect_Random" },
             { "Breath", "KbEffect_Breath" },
             { "Cycle", "KbEffect_Cycle" },
             { "Wave", "KbEffect_Wave" },

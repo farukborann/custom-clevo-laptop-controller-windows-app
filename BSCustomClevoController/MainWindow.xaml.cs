@@ -33,7 +33,7 @@ namespace BSCustomClevoController
             _notifyIcon = new NotifyIcon
             {
                 Icon = new Icon(stream),
-                Text = LocalizationManager.T("AppTitle", "Clevo Control Center"),
+                Text = LocalizationManager.T("AppTitle", "Control Center"),
                 Visible = true
             };
 
@@ -232,7 +232,7 @@ namespace BSCustomClevoController
             if (_notifyIcon == null) return;
             try
             {
-                string appTitle = LocalizationManager.T("AppTitle", "Clevo Control Center");
+                string appTitle = LocalizationManager.T("AppTitle", "Control Center");
                 string text = string.IsNullOrWhiteSpace(extraInfo)
                     ? appTitle
                     : string.Format(LocalizationManager.CurrentCulture, "{0} ({1})", appTitle, extraInfo);
@@ -535,16 +535,30 @@ namespace BSCustomClevoController
             base.OnSourceInitialized(e);
             try
             {
+                Rect work = SystemParameters.WorkArea;
+                if (work.Width > 0 && work.Height > 0)
+                {
+                    double clampedWidth = Math.Min(Width, work.Width * 0.88);
+                    double clampedHeight = Math.Min(Height, work.Height * 0.88);
+                    if (clampedWidth < Width || clampedHeight < Height)
+                    {
+                        Width = clampedWidth;
+                        Height = clampedHeight;
+                        Left = work.Left + (work.Width - Width) / 2.0;
+                        Top = work.Top + (work.Height - Height) / 2.0;
+                    }
+                }
+
                 _clevoMsg = Utility.NativeMethods.RegisterWindowMessage("ClevoMsg_ControlCenter");
                 _clevoWmiMsg = Utility.NativeMethods.RegisterWindowMessage("ClevoMsg_ControlCenter_WMI");
 
-                if (_clevoMsg != 0)
+                if (_clevoMsg > 0)
                 {
-                    Utility.NativeMethods.ChangeWindowMessageFilter(_clevoMsg, Utility.NativeMethods.MSGFLT_ADD);
+                    Utility.NativeMethods.ChangeWindowMessageFilter(unchecked((uint)_clevoMsg), Utility.NativeMethods.MSGFLT_ADD);
                 }
-                if (_clevoWmiMsg != 0)
+                if (_clevoWmiMsg > 0)
                 {
-                    Utility.NativeMethods.ChangeWindowMessageFilter(_clevoWmiMsg, Utility.NativeMethods.MSGFLT_ADD);
+                    Utility.NativeMethods.ChangeWindowMessageFilter(unchecked((uint)_clevoWmiMsg), Utility.NativeMethods.MSGFLT_ADD);
                 }
 
                 var source = PresentationSource.FromVisual(this) as HwndSource;

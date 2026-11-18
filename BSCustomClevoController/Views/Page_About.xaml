@@ -46,7 +46,7 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
-                        <TextBlock Text="Custom Clevo Controller" FontSize="20" FontWeight="Bold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                        <TextBlock Text="Control Center" FontSize="20" FontWeight="Bold" Foreground="{StaticResource Amoled.TextPrimary}" />
                         <TextBlock Text="{DynamicResource Loc.AboutAppDesc}" 
                                    FontSize="12" Foreground="{StaticResource Amoled.TextSecondary}" TextWrapping="Wrap" Margin="0,6,0,0" LineHeight="18" />
                     </StackPanel>

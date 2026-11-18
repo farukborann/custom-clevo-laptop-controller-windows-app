@@ -9,26 +9,32 @@ namespace BSCustomClevoController.Utility
 	{
 		// Token: 0x0600001C RID: 28
 		[DllImport("InsydeDCHU.dll", EntryPoint = "GetDCHU_Data_Integer")]
+		[DefaultDllImportSearchPaths(DllImportSearchPath.ApplicationDirectory | DllImportSearchPath.System32)]
 		private static extern int NativeGetDCHU_Data_Integer(int command, ref int data);
 
 		// Token: 0x0600001D RID: 29
 		[DllImport("InsydeDCHU.dll", EntryPoint = "SetDCHU_Data")]
+		[DefaultDllImportSearchPaths(DllImportSearchPath.ApplicationDirectory | DllImportSearchPath.System32)]
 		private static extern int NativeSetDCHU_Data(int command, byte[] buffer, int length);
 
 		// Token: 0x0600001E RID: 30
 		[DllImport("InsydeDCHU.dll", EntryPoint = "SetDCHU_DataEx")]
+		[DefaultDllImportSearchPaths(DllImportSearchPath.ApplicationDirectory | DllImportSearchPath.System32)]
 		private static extern int NativeSetDCHU_DataEx(int command, byte[] buffer, int length, ref byte OutputBuffer);
 
 		// Token: 0x0600001F RID: 31
 		[DllImport("InsydeDCHU.dll", EntryPoint = "GetDCHU_Data_Buffer")]
+		[DefaultDllImportSearchPaths(DllImportSearchPath.ApplicationDirectory | DllImportSearchPath.System32)]
 		private static extern int NativeGetDCHU_Data_Buffer(int command, ref byte buffer);
 
 		// Token: 0x06000020 RID: 32
 		[DllImport("InsydeDCHU.dll", EntryPoint = "ReadAppSettings")]
+		[DefaultDllImportSearchPaths(DllImportSearchPath.ApplicationDirectory | DllImportSearchPath.System32)]
 		private static extern int NativeReadAppSettings(int page, int offset, int length, ref byte buffer);
 
 		// Token: 0x06000021 RID: 33
 		[DllImport("InsydeDCHU.dll", EntryPoint = "WriteAppSettings")]
+		[DefaultDllImportSearchPaths(DllImportSearchPath.ApplicationDirectory | DllImportSearchPath.System32)]
 		private static extern int NativeWriteAppSettings(int page, int offset, int length, ref byte buffer);
 
 		// InsydeDCHU.dll shares one ACPI buffer; concurrent calls from the EC poll thread and UI timers corrupt each other's reads.
@@ -41,11 +47,15 @@ namespace BSCustomClevoController.Utility
 
 		public static int SetDCHU_Data(int command, byte[] buffer, int length)
 		{
+			if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+			if (length < 0 || length > buffer.Length) throw new ArgumentOutOfRangeException(nameof(length));
 			lock (DchuLock) { return NativeSetDCHU_Data(command, buffer, length); }
 		}
 
 		public static int SetDCHU_DataEx(int command, byte[] buffer, int length, ref byte OutputBuffer)
 		{
+			if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+			if (length < 0 || length > buffer.Length) throw new ArgumentOutOfRangeException(nameof(length));
 			lock (DchuLock) { return NativeSetDCHU_DataEx(command, buffer, length, ref OutputBuffer); }
 		}
 
@@ -56,65 +66,61 @@ namespace BSCustomClevoController.Utility
 
 		public static int ReadAppSettings(int page, int offset, int length, ref byte buffer)
 		{
+			if (page < 0) throw new ArgumentOutOfRangeException(nameof(page));
+			if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset));
+			if (length <= 0) throw new ArgumentOutOfRangeException(nameof(length));
 			lock (DchuLock) { return NativeReadAppSettings(page, offset, length, ref buffer); }
 		}
 
 		public static int WriteAppSettings(int page, int offset, int length, ref byte buffer)
 		{
+			if (page < 0) throw new ArgumentOutOfRangeException(nameof(page));
+			if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset));
+			if (length <= 0) throw new ArgumentOutOfRangeException(nameof(length));
 			lock (DchuLock) { return NativeWriteAppSettings(page, offset, length, ref buffer); }
 		}
 
 		// Token: 0x06000022 RID: 34 RVA: 0x00004AF4 File Offset: 0x00002CF4
 		public int SetWMI(int command, uint data)
 		{
-			byte[] buffer = new byte[4];
-			buffer = BitConverter.GetBytes(data);
-			int result = InsydeDriver.SetDCHU_Data(command, buffer, 4);
-			DebugLog.WriteDbgLog2Outlog("SetWMI CMD=" + command.ToString() + " Data=" + data.ToString());
-			return result;
+			byte[] buffer = BitConverter.GetBytes(data);
+			return InsydeDriver.SetDCHU_Data(command, buffer, 4);
 		}
 
 		// Token: 0x06000023 RID: 35 RVA: 0x00004B44 File Offset: 0x00002D44
 		public int SetWMI(int command, int SubCommand, uint data)
 		{
-			byte[] array = new byte[4];
-			array = BitConverter.GetBytes(data);
+			byte[] array = BitConverter.GetBytes(data);
 			array[3] = Convert.ToByte(SubCommand);
-			int result = InsydeDriver.SetDCHU_Data(command, array, 4);
-			DebugLog.WriteDbgLog2Outlog(string.Concat(new string[]
-			{
-				"SetWMI CMD=",
-				command.ToString(),
-				" SubCMD=",
-				SubCommand.ToString(),
-				" Data=",
-				data.ToString()
-			}));
-			return result;
+			return InsydeDriver.SetDCHU_Data(command, array, 4);
 		}
 
 		// Token: 0x06000024 RID: 36 RVA: 0x00004BC0 File Offset: 0x00002DC0
 		public int SetWMIPackage(int command, byte[] buffer)
 		{
-			int result = InsydeDriver.SetDCHU_Data(command, buffer, 256);
-			DebugLog.WriteDbgLog2Outlog("SetWMI Package CMD=" + command.ToString());
-			return result;
+			if (buffer == null || buffer.Length < 256)
+			{
+				throw new ArgumentException("WMI package buffer must be at least 256 bytes.", nameof(buffer));
+			}
+			return InsydeDriver.SetDCHU_Data(command, buffer, 256);
 		}
 
 		// Token: 0x06000025 RID: 37 RVA: 0x00004BF8 File Offset: 0x00002DF8
 		public int SetWMIPackageEx(int command, byte[] buffer, ref byte[] o_buffer)
 		{
-			int result = 0;
-			try
-			{
-				byte[] array = new byte[256];
-				result = InsydeDriver.SetDCHU_DataEx(command, buffer, 256, ref o_buffer[0]);
-			}
-			catch
+			if (buffer == null || buffer.Length < 256 || o_buffer == null || o_buffer.Length == 0)
 			{
 				return 0;
 			}
-			return result;
+			try
+			{
+				return InsydeDriver.SetDCHU_DataEx(command, buffer, 256, ref o_buffer[0]);
+			}
+			catch (Exception ex)
+			{
+				AppLogger.Log("InsydeDriver.SetWMIPackageEx", ex);
+				return 0;
+			}
 		}
 
 		// Token: 0x06000026 RID: 38 RVA: 0x00004C48 File Offset: 0x00002E48
@@ -122,7 +128,6 @@ namespace BSCustomClevoController.Utility
 		{
 			int result = 0;
 			InsydeDriver.GetDCHU_Data_Integer(command, ref result);
-			DebugLog.WriteDbgLog2Outlog("GetWMI CMD=" + command.ToString() + " Data=" + result.ToString());
 			return result;
 		}
 
@@ -130,21 +135,29 @@ namespace BSCustomClevoController.Utility
 		public byte[] GetWMIPackage(int command)
 		{
 			byte[] array = new byte[256];
-			int dchu_Data_Buffer = InsydeDriver.GetDCHU_Data_Buffer(command, ref array[0]);
+			InsydeDriver.GetDCHU_Data_Buffer(command, ref array[0]);
 			return array;
 		}
 
 		// Token: 0x06000028 RID: 40 RVA: 0x00004CB8 File Offset: 0x00002EB8
 		public byte[] GetAPPData(int page, int Index, int length)
 		{
+			if (length <= 0)
+			{
+				return Array.Empty<byte>();
+			}
 			byte[] array = new byte[length];
-			int num = InsydeDriver.ReadAppSettings(page, Index, length, ref array[0]);
+			InsydeDriver.ReadAppSettings(page, Index, length, ref array[0]);
 			return array;
 		}
 
 		// Token: 0x06000029 RID: 41 RVA: 0x00004CE4 File Offset: 0x00002EE4
 		public int SetAPPData(int page, int Index, int length, byte[] Data)
 		{
+			if (Data == null || length <= 0 || length > Data.Length)
+			{
+				return 0;
+			}
 			return InsydeDriver.WriteAppSettings(page, Index, length, ref Data[0]);
 		}
 
@@ -152,8 +165,11 @@ namespace BSCustomClevoController.Utility
 		public void Init_WMI()
 		{
 			int wmi = this.GetWMI(70);
-			byte[] array = new byte[256];
-			array = Global.insyde.GetAPPData(7, 0, 256);
+			byte[] array = Global.insyde.GetAPPData(7, 0, 256);
+			if (array == null || array.Length < 2)
+			{
+				return;
+			}
 			int num = ((int)array[0] << 8) + (int)array[1];
 			int num2 = num;
 			int num3 = num2;
@@ -318,53 +334,25 @@ namespace BSCustomClevoController.Utility
 			byte[] array2 = new byte[256];
 			byte[] array3 = new byte[24];
 			string text = "1.";
-			array[0] = 1;
-			array[1] = 0;
-			array[2] = 0;
-			array[3] = 0;
-			array[4] = 0;
-			array[5] = 0;
-			array[6] = 222;
-			int num = this.SetWMIPackageEx(4, array, ref array2);
-			array[0] = 1;
-			array[1] = 1;
-			array[2] = 0;
-			array[3] = 0;
-			array[4] = 0;
-			array[5] = 0;
-			array[6] = 222;
-			num = this.SetWMIPackageEx(4, array, ref array2);
-			array3[0] = array2[1];
-			array3[1] = array2[2];
-			array3[2] = array2[3];
-			array3[3] = array2[4];
-			array3[4] = array2[5];
-			array[0] = 1;
-			array[1] = 2;
-			array[2] = 0;
-			array[3] = 0;
-			array[4] = 0;
-			array[5] = 0;
-			array[6] = 222;
-			num = this.SetWMIPackageEx(4, array, ref array2);
-			array3[5] = array2[1];
-			array3[6] = array2[2];
-			array3[7] = array2[3];
-			array3[8] = array2[4];
-			array3[9] = array2[5];
-			array[0] = 1;
-			array[1] = 3;
-			array[2] = 0;
-			array[3] = 0;
-			array[4] = 0;
-			array[5] = 0;
-			array[6] = 222;
-			num = this.SetWMIPackageEx(4, array, ref array2);
-			array3[10] = array2[1];
-			array3[11] = array2[2];
-			array3[12] = array2[3];
-			array3[13] = array2[4];
-			array3[14] = array2[5];
+			lock (DchuLock)
+			{
+				array[0] = 1;
+				array[1] = 0;
+				array[6] = 222;
+				NativeSetDCHU_DataEx(4, array, 256, ref array2[0]);
+
+				array[1] = 1;
+				NativeSetDCHU_DataEx(4, array, 256, ref array2[0]);
+				Array.Copy(array2, 1, array3, 0, 5);
+
+				array[1] = 2;
+				NativeSetDCHU_DataEx(4, array, 256, ref array2[0]);
+				Array.Copy(array2, 1, array3, 5, 5);
+
+				array[1] = 3;
+				NativeSetDCHU_DataEx(4, array, 256, ref array2[0]);
+				Array.Copy(array2, 1, array3, 10, 5);
+			}
 			text += Encoding.ASCII.GetString(array3);
 			string[] array4 = text.Split(new char[] { '$' });
 			return array4[0].Trim(new char[1]);

@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace BSCustomClevoController.Utility
 {
@@ -41,117 +42,139 @@ namespace BSCustomClevoController.Utility
             {
             }
 
-            return AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\') + @"\BSCustomClevoController.exe";
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            string winUiPath = Path.Combine(baseDir, "BSCustomClevoController.App.exe");
+            if (File.Exists(winUiPath))
+            {
+                return winUiPath;
+            }
+
+            return Path.Combine(baseDir, "BSCustomClevoController.exe");
         }
 
         public static bool IsRunAtStartupEnabled()
         {
-            if (IsTaskScheduled())
-            {
-                return true;
-            }
-
-            try
-            {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunRegistryKey, false))
-                {
-                    if (key != null)
-                    {
-                        object val = key.GetValue(AppName);
-                        return val != null;
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(RunRegistryKey, false))
-                {
-                    if (key != null)
-                    {
-                        object val = key.GetValue(AppName);
-                        return val != null;
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            return false;
+            return IsTaskScheduled()
+                || HasRunRegistryValue(Registry.CurrentUser)
+                || HasRunRegistryValue(Registry.LocalMachine);
         }
 
         public static bool SetRunAtStartup(bool enable)
         {
-            if (enable)
+            return enable ? EnableStartup() : DisableStartup();
+        }
+
+        private static bool EnableStartup()
+        {
+            if (CreateStartupTask() || IsTaskScheduled())
             {
-                CreateStartupTask();
-
-                try
-                {
-                    using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunRegistryKey, true))
-                    {
-                        if (key != null)
-                        {
-                            string exePath = GetExecutablePath();
-                            key.SetValue(AppName, "\"" + exePath + "\" /minimized");
-                        }
-                    }
-                }
-                catch
-                {
-                }
-            }
-            else
-            {
-                RemoveStartupTask();
-
-                try
-                {
-                    using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunRegistryKey, true))
-                    {
-                        if (key != null && key.GetValue(AppName) != null)
-                        {
-                            key.DeleteValue(AppName, false);
-                        }
-                    }
-                }
-                catch
-                {
-                }
-
-                try
-                {
-                    using (RegistryKey key = Registry.LocalMachine.OpenSubKey(RunRegistryKey, true))
-                    {
-                        if (key != null && key.GetValue(AppName) != null)
-                        {
-                            key.DeleteValue(AppName, false);
-                        }
-                    }
-                }
-                catch
-                {
-                }
+                // Task Scheduler runs with HighestAvailable privileges on logon without UAC prompts.
+                // Clean up redundant Run registry keys to avoid duplicate startup launches and UAC prompts.
+                RemoveRunRegistryKeys();
+                return true;
             }
 
-            return IsRunAtStartupEnabled() == enable;
+            // Fallback only if Task Scheduler task creation failed (e.g. policy restriction)
+            SetCurrentUserRunValue(GetExecutablePath());
+            return IsRunAtStartupEnabled();
+        }
+
+        private static bool DisableStartup()
+        {
+            RemoveStartupTask();
+            RemoveRunRegistryKeys();
+            return !IsRunAtStartupEnabled();
+        }
+
+        public static void RemoveRunRegistryKeys()
+        {
+            DeleteRunRegistryValueIfPresent(Registry.CurrentUser, "StartupManager.RemoveRunRegistryKeyHKCU");
+            DeleteRunRegistryValueIfPresent(Registry.LocalMachine, "StartupManager.RemoveRunRegistryKeyHKLM");
         }
 
         public static void EnsureConfiguredCorrectly()
         {
             try
             {
-                if (IsRunAtStartupEnabled())
+                bool taskScheduled = IsTaskScheduled();
+                bool hasRunKey = HasRunRegistryValue(Registry.CurrentUser) || HasRunRegistryValue(Registry.LocalMachine);
+
+                if (!taskScheduled && !hasRunKey)
                 {
-                    CreateStartupTask();
+                    return;
+                }
+
+                if (!taskScheduled)
+                {
+                    taskScheduled = CreateStartupTask() || IsTaskScheduled();
+                }
+
+                if (taskScheduled && hasRunKey)
+                {
+                    // Clean up duplicate Run registry key when Task Scheduler is active
+                    RemoveRunRegistryKeys();
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Log("StartupManager.EnsureConfiguredCorrectly", ex);
+            }
+        }
+
+        private static bool HasRunRegistryValue(RegistryKey hive)
+        {
+            try
+            {
+                using (RegistryKey key = hive.OpenSubKey(RunRegistryKey, false))
+                {
+                    return key != null && key.GetValue(AppName) != null;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("StartupManager.HasRunRegistryValue", ex);
+                return false;
+            }
+        }
+
+        private static void SetCurrentUserRunValue(string exePath)
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunRegistryKey, true))
+                {
+                    if (key != null)
+                    {
+                        key.SetValue(AppName, "\"" + exePath + "\" /minimized");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("StartupManager.SetRunRegistryKey", ex);
+            }
+        }
+
+        private static void DeleteRunRegistryValueIfPresent(RegistryKey hive, string logContext)
+        {
+            if (!HasRunRegistryValue(hive))
+            {
+                return;
+            }
+
+            try
+            {
+                using (RegistryKey key = hive.OpenSubKey(RunRegistryKey, true))
+                {
+                    if (key != null && key.GetValue(AppName) != null)
+                    {
+                        key.DeleteValue(AppName, false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log(logContext, ex);
             }
         }
 
@@ -162,8 +185,8 @@ namespace BSCustomClevoController.Utility
                 "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n" +
                 "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n" +
                 "  <RegistrationInfo>\r\n" +
-                "    <Author>Custom Clevo Controller</Author>\r\n" +
-                "    <Description>Starts Custom Clevo Controller with elevated privileges at user logon.</Description>\r\n" +
+                "    <Author>Control Center</Author>\r\n" +
+                "    <Description>Starts Control Center with elevated privileges at user logon.</Description>\r\n" +
                 "    <URI>\\{0}</URI>\r\n" +
                 "  </RegistrationInfo>\r\n" +
                 "  <Principals>\r\n" +
@@ -197,21 +220,60 @@ namespace BSCustomClevoController.Utility
                 System.Security.SecurityElement.Escape(exeDir));
         }
 
+        private static dynamic ConnectRootTaskFolder()
+        {
+            Type serviceType = Type.GetTypeFromProgID("Schedule.Service");
+            if (serviceType == null)
+            {
+                return null;
+            }
+
+            dynamic service = Activator.CreateInstance(serviceType);
+            service.Connect();
+            return service.GetFolder(@"\");
+        }
+
+        private static bool IsTaskNotFoundException(Exception ex)
+        {
+            if (ex == null)
+            {
+                return false;
+            }
+
+            if (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+            {
+                return true;
+            }
+
+            if (ex is COMException comEx)
+            {
+                const int ErrorFileNotFound = unchecked((int)0x80070002);
+                const int ErrorPathNotFound = unchecked((int)0x80070003);
+                if (comEx.HResult == ErrorFileNotFound || comEx.HResult == ErrorPathNotFound)
+                {
+                    return true;
+                }
+            }
+
+            return ex.InnerException != null && IsTaskNotFoundException(ex.InnerException);
+        }
+
         private static bool RegisterTaskViaCom(string xml)
         {
             try
             {
-                Type serviceType = Type.GetTypeFromProgID("Schedule.Service");
-                if (serviceType == null) return false;
+                dynamic rootFolder = ConnectRootTaskFolder();
+                if (rootFolder == null)
+                {
+                    return false;
+                }
 
-                dynamic service = Activator.CreateInstance(serviceType);
-                service.Connect();
-                dynamic rootFolder = service.GetFolder(@"\");
                 rootFolder.RegisterTask(TaskName, xml, 6, null, null, 3, null);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Log("StartupManager.RegisterTaskViaCom", ex);
                 return false;
             }
         }
@@ -282,57 +344,53 @@ namespace BSCustomClevoController.Utility
 
         private static bool RemoveStartupTask()
         {
-            bool deleted = false;
             try
             {
-                Type serviceType = Type.GetTypeFromProgID("Schedule.Service");
-                if (serviceType != null)
+                dynamic rootFolder = ConnectRootTaskFolder();
+                if (rootFolder != null)
                 {
-                    dynamic service = Activator.CreateInstance(serviceType);
-                    service.Connect();
-                    dynamic rootFolder = service.GetFolder(@"\");
                     rootFolder.DeleteTask(TaskName, 0);
-                    deleted = true;
+                    return true;
                 }
             }
-            catch
+            catch (Exception ex) when (IsTaskNotFoundException(ex))
             {
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("StartupManager.RemoveStartupTaskCom", ex);
             }
 
             try
             {
-                if (ProcessRunner.Run(ProcessRunner.ResolveSystemTool("schtasks.exe"), string.Format("/delete /f /tn \"{0}\"", TaskName), 5000, out _) == 0)
-                {
-                    deleted = true;
-                }
+                return ProcessRunner.Run(ProcessRunner.ResolveSystemTool("schtasks.exe"), string.Format("/delete /f /tn \"{0}\"", TaskName), 5000, out _) == 0;
             }
             catch (Exception ex)
             {
                 AppLogger.Log("StartupManager.RemoveStartupTaskCli", ex);
+                return false;
             }
-
-            return deleted;
         }
 
         private static bool IsTaskScheduled()
         {
             try
             {
-                Type serviceType = Type.GetTypeFromProgID("Schedule.Service");
-                if (serviceType != null)
+                dynamic rootFolder = ConnectRootTaskFolder();
+                if (rootFolder != null)
                 {
-                    dynamic service = Activator.CreateInstance(serviceType);
-                    service.Connect();
-                    dynamic rootFolder = service.GetFolder(@"\");
                     dynamic task = rootFolder.GetTask(TaskName);
-                    if (task != null && task.Enabled)
-                    {
-                        return true;
-                    }
+                    return task != null && (bool)task.Enabled;
                 }
             }
-            catch
+            catch (Exception ex) when (IsTaskNotFoundException(ex))
             {
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("StartupManager.IsTaskScheduledCom", ex);
             }
 
             try

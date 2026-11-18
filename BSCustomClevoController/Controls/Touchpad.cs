@@ -11,7 +11,12 @@ namespace BSCustomClevoController.Controls
 
         private static long _suppressHardwareEventsUntilTicks;
         private static long _lastTouchpadToggleTicks;
+        private static long _pendingDesiredUntilTicks;
+        private static bool _pendingDesiredState;
+        private static bool _hasPendingDesired;
         private static readonly object _touchpadToggleLock = new object();
+
+        public static event Action<bool> TouchpadStateChanged;
 
         public static bool IsHardwareEventSuppressed => MonotonicClock.IsBefore(_suppressHardwareEventsUntilTicks);
 
@@ -73,17 +78,38 @@ namespace BSCustomClevoController.Controls
         {
             try
             {
+                bool? rawState = null;
                 bool? ptpState = GetWindowsPrecisionTouchpadState();
                 if (ptpState.HasValue)
                 {
-                    return ptpState.Value;
+                    rawState = ptpState.Value;
+                }
+                else
+                {
+                    int ecState = 0;
+                    int ret = InsydeDriver.GetDCHU_Data_Integer(9, ref ecState);
+                    if (ret >= 0)
+                    {
+                        rawState = ecState == 1;
+                    }
                 }
 
-                int ecState = 0;
-                int ret = InsydeDriver.GetDCHU_Data_Integer(9, ref ecState);
-                if (ret >= 0)
+                if (_hasPendingDesired)
                 {
-                    return ecState == 1;
+                    if ((rawState.HasValue && rawState.Value == _pendingDesiredState) ||
+                        !MonotonicClock.IsBefore(_pendingDesiredUntilTicks))
+                    {
+                        _hasPendingDesired = false;
+                    }
+                    else
+                    {
+                        return _pendingDesiredState;
+                    }
+                }
+
+                if (rawState.HasValue)
+                {
+                    return rawState.Value;
                 }
 
                 object appVal = Registry.GetValue(AppRegistryKey, "TouchpadEnabled", null);
@@ -97,6 +123,17 @@ namespace BSCustomClevoController.Controls
                 AppLogger.Log("Touchpad.GetTouchpadState", ex);
             }
             return true;
+        }
+
+        internal static void NotifyExternalState(bool enable)
+        {
+            if (_hasPendingDesired && MonotonicClock.IsBefore(_pendingDesiredUntilTicks))
+            {
+                return;
+            }
+
+            SyncDchuAndRegistry(enable);
+            TouchpadStateChanged?.Invoke(enable);
         }
 
         private static void DispatchPrecisionTouchpadShortcut()
@@ -163,6 +200,9 @@ namespace BSCustomClevoController.Controls
                 bool current = GetTouchpadState();
                 if (current != enable)
                 {
+                    _pendingDesiredState = enable;
+                    _pendingDesiredUntilTicks = MonotonicClock.DeadlineFromNowMs(900.0);
+                    _hasPendingDesired = true;
                     DispatchPrecisionTouchpadShortcut();
                 }
 
@@ -172,6 +212,8 @@ namespace BSCustomClevoController.Controls
                 {
                     OsdOverlay.ShowTouchpad(enable);
                 }
+                TouchpadStateChanged?.Invoke(enable);
+                SystemPreferences.NotifyHardwareStateChanged();
                 return enable;
             }
         }
@@ -191,11 +233,16 @@ namespace BSCustomClevoController.Controls
                 bool? ptpState = GetWindowsPrecisionTouchpadState();
                 if (ptpState.HasValue && ptpState.Value != enable)
                 {
+                    _pendingDesiredState = enable;
+                    _pendingDesiredUntilTicks = MonotonicClock.DeadlineFromNowMs(900.0);
+                    _hasPendingDesired = true;
                     DispatchPrecisionTouchpadShortcut();
                 }
 
                 SyncDchuAndRegistry(enable);
                 OsdOverlay.ShowTouchpad(enable);
+                TouchpadStateChanged?.Invoke(enable);
+                SystemPreferences.NotifyHardwareStateChanged();
             }
         }
 

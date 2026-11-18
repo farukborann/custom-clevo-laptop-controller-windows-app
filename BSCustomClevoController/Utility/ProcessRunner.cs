@@ -11,7 +11,7 @@ namespace BSCustomClevoController.Utility
         {
             if (string.IsNullOrWhiteSpace(fileName))
             {
-                return fileName;
+                return null;
             }
 
             try
@@ -42,17 +42,24 @@ namespace BSCustomClevoController.Utility
                 AppLogger.Log("ProcessRunner.ResolveSystemTool:" + fileName, ex);
             }
 
-            return fileName;
+            return null;
         }
 
         public static int Run(string fileName, string arguments, int timeoutMs, out string combinedOutput)
         {
+            string resolvedTool = ResolveSystemTool(fileName);
+            if (string.IsNullOrEmpty(resolvedTool))
+            {
+                combinedOutput = string.Empty;
+                return -1;
+            }
+
             StringBuilder output = new StringBuilder();
             object outputLock = new object();
 
             ProcessStartInfo psi = new ProcessStartInfo
             {
-                FileName = ResolveSystemTool(fileName),
+                FileName = resolvedTool,
                 Arguments = arguments,
                 WorkingDirectory = Environment.SystemDirectory,
                 UseShellExecute = false,
@@ -87,6 +94,7 @@ namespace BSCustomClevoController.Utility
                     try
                     {
                         process.Kill();
+                        process.WaitForExit(1000);
                     }
                     catch (Exception ex)
                     {

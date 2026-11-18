@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
 using System.Windows;
+using System.Windows.Threading;
 using ControlzEx.Theming;
 using MahApps.Metro.Theming;
 
@@ -16,6 +18,83 @@ namespace BSCustomClevoController
         private static Mutex _appMutex;
         private static EventWaitHandle _wakeEvent;
         private static RegisteredWaitHandle _waitRegistration;
+        private static ResourceDictionary _activeLocalizationDictionary;
+        private static Views.OsdWindow _osdWindow;
+        private static readonly object _osdLock = new object();
+
+        private sealed class WpfEffectTimer : Utility.IEffectTimer
+        {
+            private readonly DispatcherTimer _timer;
+
+            public WpfEffectTimer(TimeSpan interval, EventHandler tick)
+            {
+                _timer = new DispatcherTimer { Interval = interval };
+                if (tick != null)
+                {
+                    _timer.Tick += tick;
+                }
+            }
+
+            public bool IsEnabled => _timer.IsEnabled;
+
+            public void Start() => _timer.Start();
+
+            public void Stop() => _timer.Stop();
+
+            public void Dispose() => _timer.Stop();
+        }
+
+        private static void RegisterWpfBridges()
+        {
+            Utility.UiDispatcher.PostHandler = action => Current?.Dispatcher?.BeginInvoke(action);
+            Utility.UiDispatcher.EffectTimerFactory = (interval, tick) => new WpfEffectTimer(interval, tick);
+            Utility.LocalizationManager.StringsApplied += ApplyWpfLocalizationDictionary;
+            Utility.OsdOverlay.DisplayHandler = ShowWpfOsd;
+        }
+
+        private static void ApplyWpfLocalizationDictionary(IReadOnlyDictionary<string, string> strings)
+        {
+            if (Current == null || strings == null) return;
+
+            var dict = new ResourceDictionary();
+            foreach (var kvp in strings)
+            {
+                dict["Loc." + kvp.Key] = kvp.Value;
+            }
+
+            var merged = Current.Resources.MergedDictionaries;
+            if (_activeLocalizationDictionary != null)
+            {
+                merged.Remove(_activeLocalizationDictionary);
+            }
+            merged.Add(dict);
+            _activeLocalizationDictionary = dict;
+        }
+
+        private static void ShowWpfOsd(string imageName, string text)
+        {
+            var app = Current;
+            if (app == null) return;
+
+            app.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                lock (_osdLock)
+                {
+                    if (_osdWindow == null)
+                    {
+                        _osdWindow = new Views.OsdWindow();
+                        _osdWindow.Closed += (s, e) =>
+                        {
+                            lock (_osdLock)
+                            {
+                                _osdWindow = null;
+                            }
+                        };
+                    }
+                    _osdWindow.Display(imageName, text);
+                }
+            }));
+        }
 
         public App()
         {
@@ -49,6 +128,8 @@ namespace BSCustomClevoController
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            Utility.NativeMethods.HardenDllSearchOrder();
+
             if (e.Args != null)
             {
                 foreach (string arg in e.Args)
@@ -110,6 +191,7 @@ namespace BSCustomClevoController
 
             _waitRegistration = ThreadPool.RegisterWaitForSingleObject(_wakeEvent, OnWakeRequested, null, -1, false);
 
+            RegisterWpfBridges();
             Utility.LocalizationManager.Initialize();
 
             var theme = ThemeManager.Current.AddLibraryTheme(new LibraryTheme(

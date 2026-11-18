@@ -13,9 +13,11 @@ namespace BSCustomClevoController.Utility
         public static event Action ShowMainWindowRequested;
 
         private const string AppRegistryKey = @"HKEY_CURRENT_USER\Software\BSCustomClevoController";
+        private const string RuntimeSessionSubKey = @"Software\BSCustomClevoController\RuntimeSession";
 
         private static bool _initialized;
         private static bool _preferencesLoaded;
+        private static bool _ecSettingsAppliedOnStartup;
         private static readonly object _initLock = new object();
 
         private static long _lastWinKeyChangeTicks;
@@ -68,7 +70,11 @@ namespace BSCustomClevoController.Utility
                 SetAcpiEventListening(true);
             }
             Touchpad.Initialize();
-            ApplyKeyboardSettingsToEC();
+            if (!_ecSettingsAppliedOnStartup)
+            {
+                ApplyKeyboardSettingsToEC();
+                _ecSettingsAppliedOnStartup = true;
+            }
             StartHsaEventListener();
             StartWmiEventWatcher();
             StartEventLogWatcher();
@@ -82,8 +88,6 @@ namespace BSCustomClevoController.Utility
                 NativeMethods.keybd_event(0x11, 0, NativeMethods.KEYEVENTF_KEYUP, 0);
                 NativeMethods.keybd_event(0x10, 0, NativeMethods.KEYEVENTF_KEYUP, 0);
                 NativeMethods.keybd_event(0x12, 0, NativeMethods.KEYEVENTF_KEYUP, 0);
-                _hookWinDown = false;
-                _hookAltDown = false;
             }
             catch (Exception ex)
             {
@@ -150,19 +154,10 @@ namespace BSCustomClevoController.Utility
                 byte[] output = new byte[256];
                 input[0] = 24;
                 int res = InsydeDriver.SetDCHU_DataEx(4, input, 256, ref output[0]);
-                if (res > 0)
+                if (res > 0 && (output[0] == 1 || output[0] == 2))
                 {
                     Array.Copy(output, _lastEcKeyboardState, Math.Min(output.Length, _lastEcKeyboardState.Length));
-                    if (output[0] == 1 || output[0] == 2)
-                    {
-                        return output[0];
-                    }
-                }
-
-                byte[] fnState = new byte[1];
-                if (InsydeDriver.ReadAppSettings(1, 36, 1, ref fnState[0]) > 0)
-                {
-                    return fnState[0];
+                    return output[0];
                 }
             }
             catch (Exception ex)
@@ -248,10 +243,16 @@ namespace BSCustomClevoController.Utility
             _lastWinKeyChangeTicks = MonotonicClock.NowTicks();
             SendHKeyMessage(262, (byte)(enable ? 1 : 0));
             OsdOverlay.ShowWinKeyLock(_isWinKeyLocked);
+            NotifyHardwareStateChanged();
             return _isWinKeyLocked;
         }
 
-        public static bool ToggleWinKeyLock() => SetWinKeyLock(!_isWinKeyLocked);
+        public static bool ToggleWinKeyLock()
+        {
+            bool res = SetWinKeyLock(!_isWinKeyLocked);
+            NotifyHardwareStateChanged();
+            return res;
+        }
 
         public static bool SetSwapWinFn(bool enable)
         {
@@ -267,10 +268,16 @@ namespace BSCustomClevoController.Utility
 
             ApplyKeyboardSettingsToEC();
             UpdateHookState();
+            NotifyHardwareStateChanged();
             return _isSwapWinFn;
         }
 
-        public static bool ToggleSwapWinFn() => SetSwapWinFn(!_isSwapWinFn);
+        public static bool ToggleSwapWinFn()
+        {
+            bool res = SetSwapWinFn(!_isSwapWinFn);
+            NotifyHardwareStateChanged();
+            return res;
+        }
 
         public static bool SetFnLock(bool enable)
         {
@@ -288,16 +295,26 @@ namespace BSCustomClevoController.Utility
             ApplyKeyboardSettingsToEC();
             UpdateHookState();
             OsdOverlay.ShowFnLock(_isFnLock);
+            NotifyHardwareStateChanged();
             return _isFnLock;
         }
 
-        public static bool ToggleFnLock() => SetFnLock(!_isFnLock);
+        public static bool ToggleFnLock()
+        {
+            bool res = SetFnLock(!_isFnLock);
+            NotifyHardwareStateChanged();
+            return res;
+        }
 
         private static bool ToggleFnLockFromEC()
         {
             int ecState = ReadFnLockFromEC();
-            if (ecState == 1) return SetFnLock(false);
-            if (ecState == 2) return SetFnLock(true);
+            if (ecState == 1 || ecState == 2)
+            {
+                bool ecOn = ecState == 1;
+                bool target = (ecOn != _isFnLock) ? ecOn : !_isFnLock;
+                return SetFnLock(target);
+            }
             return SetFnLock(!_isFnLock);
         }
 
@@ -305,27 +322,36 @@ namespace BSCustomClevoController.Utility
 
         public static void ToggleCapsLock()
         {
+            bool nextState = !GetCapsLockState();
             NativeMethods.keybd_event(NativeMethods.VK_CAPITAL, 0x45, 0, 0);
             NativeMethods.keybd_event(NativeMethods.VK_CAPITAL, 0x45, NativeMethods.KEYEVENTF_KEYUP, 0);
             SendHKeyMessage(265, 0);
+            OsdOverlay.ShowCaps(nextState);
+            NotifyHardwareStateChanged();
         }
 
         public static bool GetNumLockState() => (NativeMethods.GetKeyState(NativeMethods.VK_NUMLOCK) & 1) != 0;
 
         public static void ToggleNumLock()
         {
+            bool nextState = !GetNumLockState();
             NativeMethods.keybd_event(NativeMethods.VK_NUMLOCK, 0x45, 0, 0);
             NativeMethods.keybd_event(NativeMethods.VK_NUMLOCK, 0x45, NativeMethods.KEYEVENTF_KEYUP, 0);
             SendHKeyMessage(267, 0);
+            OsdOverlay.ShowNum(nextState);
+            NotifyHardwareStateChanged();
         }
 
         public static bool GetScrollLockState() => (NativeMethods.GetKeyState(NativeMethods.VK_SCROLL) & 1) != 0;
 
         public static void ToggleScrollLock()
         {
+            bool nextState = !GetScrollLockState();
             NativeMethods.keybd_event(NativeMethods.VK_SCROLL, 0x45, 0, 0);
             NativeMethods.keybd_event(NativeMethods.VK_SCROLL, 0x45, NativeMethods.KEYEVENTF_KEYUP, 0);
             SendHKeyMessage(266, 0);
+            OsdOverlay.ShowScroll(nextState);
+            NotifyHardwareStateChanged();
         }
 
         public static void AdjustScreenBrightness(int delta)
@@ -501,83 +527,37 @@ namespace BSCustomClevoController.Utility
                     if (regSpeed is int s && s >= 1 && s <= 3) animSpeed = s;
                 }
 
-                if (kbStatus.LightState)
+                bool onBattery = KeyboardEffects.IsRunningOnBattery;
+                bool shouldStartEffect = kbStatus.LightState && savedEffect != null && (!savedEffect.IsSoftware || !onBattery);
+                if (shouldStartEffect)
                 {
-                    bool onBattery = KeyboardEffects.IsRunningOnBattery;
-                    bool shouldStartEffect = savedEffect != null && (!savedEffect.IsSoftware || !onBattery);
-
-                    if (shouldStartEffect)
-                    {
-                        KeyboardEffect.CurrentAnimationSpeed = animSpeed;
-                        KeyboardEffects.Duration = animSpeed == 1 ? 5000 : (animSpeed == 3 ? 1000 : 2500);
-                        KeyboardEffects.MaxBrightness = targetBrightness;
-
-                        if (savedEffect.IsSoftware)
-                        {
-                            bool isBreath = savedEffect.Id == 8 || savedEffect.Id == 10;
-                            if (savedEffect.Id == 8 && caps.SupportsRgb)
-                            {
-                                KeyboardBackLight.SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
-                            }
-                            else if ((savedEffect.Id == 9 || savedEffect.Id == 10) && caps.SupportsRgb)
-                            {
-                                // Initialize at first Rainbow color instead of flashing static color
-                                KeyboardBackLight.SetColourRealtime(255, 0, 0);
-                            }
-
-                            KeyboardBackLight.TurnOn(isBreath ? (byte)0 : targetBrightness);
-
-                            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
-                            {
-                                savedEffect.SetEffect();
-                            }));
-                        }
-                        else
-                        {
-                            KeyboardBackLight.TurnOn(targetBrightness);
-                            KeyboardBackLight.SetMode(savedEffect, targetBrightness);
-                        }
-                    }
-                    else
-                    {
-                        if (savedEffect != null && savedEffect.IsSoftware && onBattery)
-                        {
-                            KeyboardEffects.SavedBatterySoftwareEffect = savedEffect;
-                        }
-
-                        if (caps.SupportsRgb)
-                        {
-                            if (KeyboardBackLight.IsPerZoneColorActive())
-                            {
-                                KeyboardBackLight.ApplyCurrentStaticColorsRealtime();
-                                KeyboardBackLight.TurnOn(targetBrightness);
-                                for (int z = 0; z < 3; z++)
-                                {
-                                    System.Drawing.Color zc = KeyboardBackLight.GetZoneColour(z);
-                                    KeyboardBackLight.SetZoneColour(z, zc.R, zc.G, zc.B);
-                                }
-                            }
-                            else
-                            {
-                                KeyboardBackLight.SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
-                                KeyboardBackLight.TurnOn(targetBrightness);
-                                KeyboardBackLight.SetColour(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
-                            }
-                        }
-                        else
-                        {
-                            KeyboardBackLight.TurnOn(targetBrightness);
-                        }
-                        KeyboardBackLight.SetBrightness(targetBrightness);
-                    }
+                    KeyboardEffect.CurrentAnimationSpeed = animSpeed;
+                    KeyboardEffects.Duration = animSpeed == 1 ? 5000 : (animSpeed == 3 ? 1000 : 2500);
+                    KeyboardEffects.MaxBrightness = targetBrightness;
                 }
-                else
+                else if (kbStatus.LightState && savedEffect != null && savedEffect.IsSoftware && onBattery)
                 {
-                    KeyboardBackLight.TurnOff();
+                    KeyboardEffects.SavedBatterySoftwareEffect = savedEffect;
                 }
-                KeyboardBackLight.SetSleepTimer(kbStatus.SleepSecond);
 
-                ApplyKeyboardSettingsToEC();
+                bool alreadySynced = IsKeyboardHardwareSyncedInSession();
+                KeyboardBackLight.ApplySavedLightingOnStartup(
+                    kbStatus,
+                    caps,
+                    savedEffect,
+                    shouldStartEffect,
+                    targetBrightness,
+                    skipHardwareWrite: alreadySynced);
+                if (!alreadySynced)
+                {
+                    MarkKeyboardHardwareSyncedInSession();
+                }
+
+                if (!_ecSettingsAppliedOnStartup)
+                {
+                    ApplyKeyboardSettingsToEC();
+                    _ecSettingsAppliedOnStartup = true;
+                }
 
                 object regBatMode = Registry.GetValue(AppRegistryKey, "BatteryMode", null);
                 if (regBatMode is int intBatMode)
@@ -602,6 +582,53 @@ namespace BSCustomClevoController.Utility
             }
         }
 
+        public static event Action HardwareStateChanged;
+
+        internal static void NotifyHardwareStateChanged()
+        {
+            try
+            {
+                HardwareStateChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("SystemPreferences.NotifyHardwareStateChanged", ex);
+            }
+        }
+
+        private static bool IsKeyboardHardwareSyncedInSession()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RuntimeSessionSubKey, writable: false))
+                {
+                    return key?.GetValue("KeyboardSynced") is int val && val == 1;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void MarkKeyboardHardwareSyncedInSession()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(
+                    RuntimeSessionSubKey,
+                    RegistryKeyPermissionCheck.ReadWriteSubTree,
+                    RegistryOptions.Volatile))
+                {
+                    key?.SetValue("KeyboardSynced", 1, RegistryValueKind.DWord);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("SystemPreferences.MarkKeyboardHardwareSyncedInSession", ex);
+            }
+        }
+
         public static void InitializeHardwareOnStartup()
         {
             try
@@ -613,6 +640,7 @@ namespace BSCustomClevoController.Utility
                 if (!defaultsApplied)
                 {
                     ApplyFactoryDefaults();
+                    MarkKeyboardHardwareSyncedInSession();
                 }
                 else
                 {

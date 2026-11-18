@@ -1,7 +1,5 @@
-using BSCustomClevoController.Views;
 using Microsoft.Win32;
 using System;
-using System.Windows;
 using BSCustomClevoController.Controls;
 
 
@@ -9,11 +7,13 @@ namespace BSCustomClevoController.Utility
 {
     public static class OsdOverlay
     {
-        private static OsdWindow _window;
         private static bool _isEnabled = true;
         private static readonly object _lock = new object();
         private static string _lastOsdKey;
         private static long _lastOsdTicks;
+
+        /// <summary>UI-layer callback invoked with (imageName, localizedText) when an OSD should appear.</summary>
+        public static Action<string, string> DisplayHandler { get; set; }
 
         static OsdOverlay()
         {
@@ -65,27 +65,7 @@ namespace BSCustomClevoController.Utility
                 _lastOsdTicks = MonotonicClock.NowTicks();
             }
 
-            Application app = Application.Current;
-            if (app == null) return;
-
-            app.Dispatcher.BeginInvoke(new Action(() =>
-            {
-                lock (_lock)
-                {
-                    if (_window == null)
-                    {
-                        _window = new OsdWindow();
-                        _window.Closed += (s, e) =>
-                        {
-                            lock (_lock)
-                            {
-                                _window = null;
-                            }
-                        };
-                    }
-                }
-                _window.Display(imageName, text);
-            }));
+            DisplayHandler?.Invoke(imageName, text);
         }
 
         private static void ShowToggle(bool on, string onImg, string offImg, string onKey, string onFallback, string offKey, string offFallback)
@@ -137,7 +117,7 @@ namespace BSCustomClevoController.Utility
 
         public static void ShowAirplane(bool enabled)
         {
-            /* ShowToggle(enabled, "osd_airplane_on_cc40_1.png", "osd_airplane_off_cc40_1.png", "OsdAirplaneOn", "AIRPLANE MODE ON", "OsdAirplaneOff", "AIRPLANE MODE OFF"); */
+            // Windows displays its built-in Airplane Mode toast.
         }
 
         public static void ShowFnLock(bool locked)
@@ -181,13 +161,6 @@ namespace BSCustomClevoController.Utility
             ShowInternal(
                 "osd_backlight_on_cc40_1.png",
                 string.Format(LocalizationManager.CurrentCulture, pattern, localizedColor));
-        }
-
-        public static void ShowBacklightStep(bool isHigh)
-        {
-            ShowInternal(
-                isHigh ? "osd_backlight_high_cc40_1.png" : "osd_backlight_low_cc40_1.png",
-                LocalizationManager.T("OsdBacklight", "KEYBOARD\nBACKLIGHT"));
         }
 
         public static void ShowFan(bool isMax)

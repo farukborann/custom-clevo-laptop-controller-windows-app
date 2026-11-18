@@ -49,9 +49,11 @@ namespace BSCustomClevoController.Controls
         private const int DM_DISPLAYFREQUENCY = 0x400000;
 
         [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
 
         [DllImport("user32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
 
         public static int GetCurrentRefreshRate()

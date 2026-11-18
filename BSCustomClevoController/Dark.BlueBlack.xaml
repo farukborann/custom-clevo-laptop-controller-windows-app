@@ -195,42 +195,20 @@
     <markup:StaticResource x:Key="MahApps.Brushes.SystemControlDescriptionTextForeground" ResourceKey="MahApps.Brushes.SystemControlPageTextBaseMedium" />
 
     <!-- Application Palette Tokens and Functional Brushes -->
-    <Color x:Key="Amoled.Color.Background">#000000</Color>
-    <Color x:Key="Amoled.Color.CardBackground">#0B0B0E</Color>
-    <Color x:Key="Amoled.Color.CardBackgroundHover">#14141A</Color>
-    <Color x:Key="Amoled.Color.CardBorder">#1A1A22</Color>
-    <Color x:Key="Amoled.Color.CardBorderFocus">#0078D7</Color>
-    <Color x:Key="Amoled.Color.Accent">#0078D7</Color>
-    <Color x:Key="Amoled.Color.AccentMuted">#005A9E</Color>
-    <Color x:Key="Amoled.Color.TextPrimary">#FFFFFF</Color>
-    <Color x:Key="Amoled.Color.TextSecondary">#CBD5E1</Color>
-    <Color x:Key="Amoled.Color.TextMuted">#94A3B8</Color>
-
-    <SolidColorBrush x:Key="Amoled.Background" Color="{StaticResource Amoled.Color.Background}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.CardBackground" Color="{StaticResource Amoled.Color.CardBackground}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.CardBackgroundHover" Color="{StaticResource Amoled.Color.CardBackgroundHover}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.CardBorder" Color="{StaticResource Amoled.Color.CardBorder}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.CardBorderFocus" Color="{StaticResource Amoled.Color.CardBorderFocus}" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.Background" Color="#000000" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.CardBackground" Color="#0B0B0E" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.CardBackgroundHover" Color="#14141A" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.CardBorder" Color="#1A1A22" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.CardBorderFocus" Color="#0078D7" options:Freeze="True" />
     <SolidColorBrush x:Key="Amoled.InnerCard" Color="#101014" options:Freeze="True" />
     <SolidColorBrush x:Key="Amoled.InnerCardBorder" Color="#1E1E26" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.Accent" Color="{StaticResource Amoled.Color.Accent}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.AccentMuted" Color="{StaticResource Amoled.Color.AccentMuted}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.TextPrimary" Color="{StaticResource Amoled.Color.TextPrimary}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.TextSecondary" Color="{StaticResource Amoled.Color.TextSecondary}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.TextMuted" Color="{StaticResource Amoled.Color.TextMuted}" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.Accent" Color="#0078D7" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.TextPrimary" Color="#FFFFFF" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.TextSecondary" Color="#CBD5E1" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.TextMuted" Color="#94A3B8" options:Freeze="True" />
 
-    <Color x:Key="OpenSense.CoolColor">#0078D7</Color>
-    <Color x:Key="OpenSense.WarmColor">#10B981</Color>
-    <Color x:Key="OpenSense.HotColor">#F59E0B</Color>
-    <Color x:Key="OpenSense.CriticalColor">#EF4444</Color>
-
-    <SolidColorBrush x:Key="Amoled.Cool" Color="{StaticResource OpenSense.CoolColor}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.Success" Color="{StaticResource OpenSense.WarmColor}" options:Freeze="True" />
-    <SolidColorBrush x:Key="Amoled.Warning" Color="{StaticResource OpenSense.HotColor}" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.CoolBrush" Color="{StaticResource OpenSense.CoolColor}" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.WarmBrush" Color="{StaticResource OpenSense.WarmColor}" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.HotBrush" Color="{StaticResource OpenSense.HotColor}" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.CriticalBrush" Color="{StaticResource OpenSense.CriticalColor}" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.Success" Color="#10B981" options:Freeze="True" />
+    <SolidColorBrush x:Key="Amoled.Warning" Color="#F59E0B" options:Freeze="True" />
 
     <Style x:Key="AmoledCardStyle" TargetType="{x:Type Border}">
         <Setter Property="Background" Value="{StaticResource Amoled.CardBackground}" />
@@ -324,8 +302,6 @@
         </Setter>
     </Style>
 
-    <Style x:Key="AmoledPrimaryButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource AmoledAccentButtonStyle}" />
-
     <Style x:Key="GithubButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource AmoledButtonStyle}">
         <Setter Property="Padding" Value="12,6" />
         <Setter Property="FontSize" Value="11" />
@@ -418,8 +394,6 @@
             </Setter.Value>
         </Setter>
     </Style>
-
-    <Style x:Key="ModernDarkTextBox" TargetType="{x:Type TextBox}" BasedOn="{StaticResource AmoledTextBoxStyle}" />
 
     <Style x:Key="AmoledProgressBarStyle" TargetType="{x:Type ProgressBar}">
         <Setter Property="Minimum" Value="0" />
@@ -608,62 +582,6 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-    </Style>
-
-    <SolidColorBrush x:Key="OpenSense.Temp.Cool" Color="#3DB8F5" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.Temp.Warm" Color="#3DD68C" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.Temp.Hot" Color="#FFB224" options:Freeze="True" />
-    <SolidColorBrush x:Key="OpenSense.Temp.Critical" Color="#FF4D4D" options:Freeze="True" />
-
-    <Style x:Key="OpenSensePageTitleStyle" TargetType="{x:Type TextBlock}">
-        <Setter Property="FontSize" Value="28" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource Amoled.TextPrimary}" />
-        <Setter Property="Margin" Value="0,0,0,16" />
-    </Style>
-
-    <Style x:Key="OpenSenseSectionHeaderStyle" TargetType="{x:Type TextBlock}">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource Amoled.TextSecondary}" />
-        <Setter Property="Margin" Value="2,20,0,8" />
-    </Style>
-
-    <Style x:Key="OpenSenseCaptionMutedStyle" TargetType="{x:Type TextBlock}">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{StaticResource Amoled.TextMuted}" />
-    </Style>
-
-    <Style x:Key="OpenSenseTileValueStyle" TargetType="{x:Type TextBlock}">
-        <Setter Property="FontSize" Value="32" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource Amoled.TextPrimary}" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-
-    <Style x:Key="OpenSenseBigNumberStyle" TargetType="{x:Type TextBlock}">
-        <Setter Property="FontSize" Value="44" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource Amoled.TextPrimary}" />
-    </Style>
-
-    <Style x:Key="OpenSenseCardStyle" TargetType="{x:Type Border}">
-        <Setter Property="Background" Value="{StaticResource Amoled.CardBackground}" />
-        <Setter Property="BorderBrush" Value="{StaticResource Amoled.CardBorder}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="Padding" Value="18" />
-        <Setter Property="SnapsToDevicePixels" Value="True" />
-    </Style>
-
-    <Style x:Key="OpenSenseSettingsCardStyle" TargetType="{x:Type Border}">
-        <Setter Property="Background" Value="{StaticResource Amoled.CardBackground}" />
-        <Setter Property="BorderBrush" Value="{StaticResource Amoled.CardBorder}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="Padding" Value="16,14" />
-        <Setter Property="Margin" Value="0,0,0,6" />
-        <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
     <Style x:Key="OpenSenseSegmentedPillButtonStyle" TargetType="{x:Type Button}">

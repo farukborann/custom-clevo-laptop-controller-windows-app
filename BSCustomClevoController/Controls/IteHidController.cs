@@ -79,30 +79,39 @@ namespace BSCustomClevoController.Controls
         private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
 
         [DllImport("hid.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern void HidD_GetHidGuid(out Guid hidGuid);
 
         [DllImport("hid.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool HidD_GetAttributes(IntPtr hidDeviceObject, ref HIDD_ATTRIBUTES attributes);
 
         [DllImport("hid.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool HidD_SetFeature(IntPtr hidDeviceObject, byte[] lpReportBuffer, int reportBufferLength);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern IntPtr SetupDiGetClassDevs(ref Guid classGuid, IntPtr enumerator, IntPtr hwndParent, uint flags);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiEnumDeviceInterfaces(IntPtr deviceInfoSet, IntPtr deviceInfoData, ref Guid interfaceClassGuid, uint memberIndex, ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData);
 
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr deviceInfoSet, ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData, IntPtr deviceInterfaceDetailData, uint deviceInterfaceDetailDataSize, ref uint requiredSize, IntPtr deviceInfoData);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiDestroyDeviceInfoList(IntPtr deviceInfoSet);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool CloseHandle(IntPtr hObject);
 
         /// <summary>
@@ -174,7 +183,8 @@ namespace BSCustomClevoController.Controls
                 {
                     uint requiredSize = 0;
                     SetupDiGetDeviceInterfaceDetail(devInfo, ref interfaceData, IntPtr.Zero, 0, ref requiredSize, IntPtr.Zero);
-                    if (requiredSize == 0) continue;
+                    uint minSize = (uint)(IntPtr.Size == 8 ? 8 : 6);
+                    if (requiredSize < minSize || requiredSize > 65536) continue;
 
                     IntPtr detailBuffer = Marshal.AllocHGlobal((int)requiredSize);
                     try
@@ -283,13 +293,16 @@ namespace BSCustomClevoController.Controls
 
         private static bool SendFeatureReport(byte[] reportBuffer)
         {
-            if (string.IsNullOrEmpty(_cachedDevicePath))
+            lock (_lock)
             {
-                RefreshDevice();
-                if (string.IsNullOrEmpty(_cachedDevicePath)) return false;
-            }
+                if (string.IsNullOrEmpty(_cachedDevicePath))
+                {
+                    RefreshDevice();
+                    if (string.IsNullOrEmpty(_cachedDevicePath)) return false;
+                }
 
-            return SendCustomFeatureReport(_cachedDevicePath, reportBuffer);
+                return SendCustomFeatureReport(_cachedDevicePath, reportBuffer);
+            }
         }
 
         /// <summary>
@@ -300,12 +313,23 @@ namespace BSCustomClevoController.Controls
         {
             if (brightness > 100) brightness = 100;
 
-            if (_lightBarPresent && !string.IsNullOrEmpty(_cachedLightBarPath))
+            string lightBarPath = null;
+            ushort pid = 0;
+            lock (_lock)
+            {
+                if (_lightBarPresent && !string.IsNullOrEmpty(_cachedLightBarPath))
+                {
+                    lightBarPath = _cachedLightBarPath;
+                    pid = _detectedPid;
+                }
+            }
+
+            if (lightBarPath != null)
             {
                 byte[] colorPacket;
                 byte[] ctrlPacket;
 
-                switch (_detectedPid)
+                switch (pid)
                 {
                     case 0x7000:
                         colorPacket = new byte[] { 0x14, 0x01, 0x01, r, g, b, 0x00, 0x00 };
@@ -321,8 +345,11 @@ namespace BSCustomClevoController.Controls
                         break;
                 }
 
-                SendCustomFeatureReport(_cachedLightBarPath, colorPacket);
-                return SendCustomFeatureReport(_cachedLightBarPath, ctrlPacket);
+                lock (_lock)
+                {
+                    SendCustomFeatureReport(lightBarPath, colorPacket);
+                    return SendCustomFeatureReport(lightBarPath, ctrlPacket);
+                }
             }
 
             KeyboardBackLight.SetZoneColourRealtime(3, r, g, b);
@@ -334,11 +361,23 @@ namespace BSCustomClevoController.Controls
         /// </summary>
         public static bool SetLightBarOff()
         {
-            if (_lightBarPresent && !string.IsNullOrEmpty(_cachedLightBarPath))
+            string lightBarPath = null;
+            lock (_lock)
+            {
+                if (_lightBarPresent && !string.IsNullOrEmpty(_cachedLightBarPath))
+                {
+                    lightBarPath = _cachedLightBarPath;
+                }
+            }
+
+            if (lightBarPath != null)
             {
                 SetLightBarColor(0, 0, 0, 0);
                 byte[] offPacket = new byte[] { 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-                return SendCustomFeatureReport(_cachedLightBarPath, offPacket);
+                lock (_lock)
+                {
+                    return SendCustomFeatureReport(lightBarPath, offPacket);
+                }
             }
 
             KeyboardBackLight.SetZoneColourRealtime(3, 0, 0, 0);

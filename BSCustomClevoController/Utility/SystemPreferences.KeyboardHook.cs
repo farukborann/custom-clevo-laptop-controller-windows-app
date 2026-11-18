@@ -10,7 +10,12 @@ namespace BSCustomClevoController.Utility
     public static partial class SystemPreferences
     {
         [DllImport("PowrProf.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
-        private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool SetSuspendState(
+            [MarshalAs(UnmanagedType.U1)] bool hibernate,
+            [MarshalAs(UnmanagedType.U1)] bool forceCritical,
+            [MarshalAs(UnmanagedType.U1)] bool disableWakeEvent);
 
         private const int VK_VOLUME_MUTE = 0xAD;
         private const int VK_VOLUME_DOWN = 0xAE;
@@ -23,13 +28,13 @@ namespace BSCustomClevoController.Utility
 
         private static readonly NativeMethods.LowLevelKeyboardProc _hookCallback = HookProcedure;
         private static readonly HashSet<uint> _handledFnKeys = new HashSet<uint>();
+        private static readonly object _hookLock = new object();
         private static IntPtr _hookId = IntPtr.Zero;
+        private static int _hookThreadId;
         private static bool _isWinKeyLocked = false;
         private static bool _isSwapWinFn = false;
         private static bool _isFnLock = false;
         private static long _lastWinKeyOsdTicks;
-        private static bool _hookWinDown = false;
-        private static bool _hookAltDown = false;
 
         public static void UpdateHookState()
         {
@@ -38,38 +43,77 @@ namespace BSCustomClevoController.Utility
 
         private static void InstallKeyboardHook()
         {
-            if (_hookId != IntPtr.Zero) return;
-            try
+            // WH_KEYBOARD_LL callbacks are only dispatched to a thread with an active Win32 message loop.
+            UiDispatcher.Post(InstallKeyboardHookCore);
+        }
+
+        private static void InstallKeyboardHookCore()
+        {
+            lock (_hookLock)
             {
-                using (Process curProcess = Process.GetCurrentProcess())
-                using (ProcessModule curModule = curProcess.MainModule)
+                if (_hookId != IntPtr.Zero) return;
+                try
                 {
-                    _hookId = NativeMethods.SetWindowsHookEx(
-                        NativeMethods.WH_KEYBOARD_LL,
-                        _hookCallback,
-                        NativeMethods.GetModuleHandle(curModule.ModuleName),
-                        0);
+                    using (Process curProcess = Process.GetCurrentProcess())
+                    using (ProcessModule curModule = curProcess.MainModule)
+                    {
+                        IntPtr hMod = curModule != null ? NativeMethods.GetModuleHandle(curModule.ModuleName) : IntPtr.Zero;
+                        _hookId = NativeMethods.SetWindowsHookEx(
+                            NativeMethods.WH_KEYBOARD_LL,
+                            _hookCallback,
+                            hMod,
+                            0);
+                        if (_hookId != IntPtr.Zero)
+                        {
+                            _hookThreadId = Environment.CurrentManagedThreadId;
+                            _handledFnKeys.Clear();
+                        }
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Log("SystemPreferences.InstallKeyboardHook", ex);
+                catch (Exception ex)
+                {
+                    AppLogger.Log("SystemPreferences.InstallKeyboardHook", ex);
+                }
             }
         }
 
         private static void RemoveKeyboardHook()
         {
-            if (_hookId != IntPtr.Zero)
+            int ownerThreadId;
+            lock (_hookLock)
             {
-                try
+                if (_hookId == IntPtr.Zero) return;
+                ownerThreadId = _hookThreadId;
+            }
+
+            if (ownerThreadId == 0 || Environment.CurrentManagedThreadId == ownerThreadId || UiDispatcher.PostHandler == null)
+            {
+                RemoveKeyboardHookCore();
+            }
+            else
+            {
+                UiDispatcher.Post(RemoveKeyboardHookCore);
+            }
+        }
+
+        private static void RemoveKeyboardHookCore()
+        {
+            lock (_hookLock)
+            {
+                if (_hookId != IntPtr.Zero)
                 {
-                    NativeMethods.UnhookWindowsHookEx(_hookId);
+                    try
+                    {
+                        NativeMethods.UnhookWindowsHookEx(_hookId);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Log("SystemPreferences.RemoveKeyboardHook", ex);
+                    }
+                    _hookId = IntPtr.Zero;
+                    _hookThreadId = 0;
+                    _handledFnKeys.Clear();
                 }
-                catch (Exception ex)
-                {
-                    AppLogger.Log("SystemPreferences.RemoveKeyboardHook", ex);
-                }
-                _hookId = IntPtr.Zero;
             }
         }
 
@@ -91,44 +135,6 @@ namespace BSCustomClevoController.Utility
                 bool isKeyUp = (msg == NativeMethods.WM_KEYUP || msg == NativeMethods.WM_SYSKEYUP);
                 uint vk = hookStruct.vkCode;
 
-                if (vk == NativeMethods.VK_LWIN || vk == NativeMethods.VK_RWIN)
-                {
-                    if (isKeyDown) _hookWinDown = true;
-                    else if (isKeyUp) _hookWinDown = false;
-                }
-                else if (vk == 0x12 || vk == 0xA4 || vk == 0xA5)
-                {
-                    if (isKeyDown) _hookAltDown = true;
-                    else if (isKeyUp) _hookAltDown = false;
-                }
-
-                bool winKeyActive = _hookWinDown
-                    || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
-                    || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0
-                    || (NativeMethods.GetKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
-                    || (NativeMethods.GetKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0;
-                bool altKeyActive = _hookAltDown
-                    || (hookStruct.flags & 0x20) != 0
-                    || (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0
-                    || (NativeMethods.GetAsyncKeyState(0xA4) & 0x8000) != 0
-                    || (NativeMethods.GetAsyncKeyState(0xA5) & 0x8000) != 0
-                    || (NativeMethods.GetKeyState(0x12) & 0x8000) != 0;
-
-                if (vk == 0x4B && ((winKeyActive && altKeyActive) || _handledFnKeys.Contains(0x4B)))
-                {
-                    if (isKeyDown)
-                    {
-                        _handledFnKeys.Add(0x4B);
-                        NativeMethods.keybd_event(0xFF, 0, NativeMethods.KEYEVENTF_KEYUP, 0);
-                        Task.Run(() => ToggleMicrophone());
-                    }
-                    else if (isKeyUp)
-                    {
-                        _handledFnKeys.Remove(0x4B);
-                    }
-                    return (IntPtr)1;
-                }
-
                 if (_isWinKeyLocked && (vk == NativeMethods.VK_LWIN || vk == NativeMethods.VK_RWIN))
                 {
                     if (isKeyDown && OsdOverlay.IsEnabled && MonotonicClock.ElapsedMs(_lastWinKeyOsdTicks) >= 500.0)
@@ -137,55 +143,6 @@ namespace BSCustomClevoController.Utility
                         OsdOverlay.ShowWinKeyLock(true);
                     }
                     return (IntPtr)1;
-                }
-
-                // Intercept Backlight keys when Win/Fn is active to prevent Windows Magnifier (Win + + / Win + -)
-                if (winKeyActive)
-                {
-                    if (vk == 0xBB || vk == 0x6B)
-                    {
-                        if (isKeyDown)
-                        {
-                            int? step = KeyboardBackLight.IncreaseBrightness();
-                            if (step.HasValue)
-                            {
-                                OsdOverlay.ShowBacklight(step.Value);
-                            }
-                        }
-                        return (IntPtr)1;
-                    }
-                    if (vk == 0xBD || vk == 0x6D)
-                    {
-                        if (isKeyDown)
-                        {
-                            int? step = KeyboardBackLight.DecreaseBrightness();
-                            if (step.HasValue)
-                            {
-                                OsdOverlay.ShowBacklight(step.Value);
-                            }
-                        }
-                        return (IntPtr)1;
-                    }
-                    if (vk == 0x6A || vk == 0x38)
-                    {
-                        if (isKeyDown)
-                        {
-                            OsdOverlay.ShowBacklightToggle(KeyboardBackLight.ToggleBacklight());
-                        }
-                        return (IntPtr)1;
-                    }
-                    if (vk == 0xBF || vk == 0x6F || vk == 0x20)
-                    {
-                        if (isKeyDown)
-                        {
-                            var preset = KeyboardBackLight.CycleColorPreset();
-                            if (preset.HasValue)
-                            {
-                                OsdOverlay.ShowBacklightColor(preset.Value.Name);
-                            }
-                        }
-                        return (IntPtr)1;
-                    }
                 }
 
                 if (vk == NativeMethods.VK_F24)
@@ -207,7 +164,7 @@ namespace BSCustomClevoController.Utility
                     {
                         OsdOverlay.ShowScroll(GetScrollLockState());
                     }
-                    else if (vk == VK_AIRPLANE || vk == 0xF2)
+                    else if (vk == VK_AIRPLANE)
                     {
                         Task.Delay(120).ContinueWith(_ =>
                         {
@@ -229,11 +186,13 @@ namespace BSCustomClevoController.Utility
 
                 if (_isFnLock && _lastEcKeyboardState[0] == 0 && IsFnKey(vk))
                 {
-                    // Allow OS shortcuts (Alt+F4, Ctrl+F5, Shift+F10) through normally
-                    bool ctrlDown = (NativeMethods.GetKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
-                    bool shiftDown = (NativeMethods.GetKeyState(0x10) & 0x8000) != 0;
-                    bool altDown = (NativeMethods.GetKeyState(0x12) & 0x8000) != 0;
-                    if (ctrlDown || altDown || shiftDown)
+                    // Allow OS shortcuts (Alt+F4, Ctrl+F5, Shift+F10, Win+F1) through normally
+                    bool ctrlDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
+                    bool shiftDown = (NativeMethods.GetAsyncKeyState(0x10) & 0x8000) != 0;
+                    bool altDown = (hookStruct.flags & 0x20) != 0 || (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+                    bool winDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0
+                                || (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0;
+                    if (ctrlDown || altDown || shiftDown || winDown)
                     {
                         return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
                     }
@@ -255,6 +214,21 @@ namespace BSCustomClevoController.Utility
             return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
+        private static void QueueHookAction(string name, Action action)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Log("SystemPreferences.KeyboardHook." + name, ex);
+                }
+            });
+        }
+
         private static bool IsFnKey(uint vk) => vk >= 0x70 && vk <= 0x7B;
 
         private static bool HandleFnAction(uint vk)
@@ -262,7 +236,7 @@ namespace BSCustomClevoController.Utility
             switch (vk)
             {
                 case 0x70:
-                    OsdOverlay.ShowTouchpad(Touchpad.ToggleTouchpad());
+                    QueueHookAction("Touchpad", () => OsdOverlay.ShowTouchpad(Touchpad.ToggleTouchpad()));
                     return true;
                 case 0x71:
                     NativeMethods.PostMessage(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, MONITOR_OFF);
@@ -272,7 +246,7 @@ namespace BSCustomClevoController.Utility
                     NativeMethods.keybd_event(VK_VOLUME_MUTE, 0, NativeMethods.KEYEVENTF_KEYUP, 0);
                     return true;
                 case 0x73:
-                    CycleKeyboardBacklight();
+                    QueueHookAction("CycleBacklight", CycleKeyboardBacklight);
                     return true;
                 case 0x74:
                     NativeMethods.keybd_event(VK_VOLUME_DOWN, 0, 0, 0);
@@ -289,19 +263,19 @@ namespace BSCustomClevoController.Utility
                     NativeMethods.keybd_event(NativeMethods.VK_LWIN, 0, NativeMethods.KEYEVENTF_KEYUP, 0);
                     return true;
                 case 0x77:
-                    AdjustScreenBrightness(-10);
+                    QueueHookAction("BrightnessDown", () => AdjustScreenBrightness(-10));
                     return true;
                 case 0x78:
-                    AdjustScreenBrightness(10);
+                    QueueHookAction("BrightnessUp", () => AdjustScreenBrightness(10));
                     return true;
                 case 0x79:
-                    ToggleCamera();
+                    QueueHookAction("ToggleCamera", () => ToggleCamera());
                     return true;
                 case 0x7A:
-                    ToggleAirplaneMode();
+                    QueueHookAction("ToggleAirplane", () => ToggleAirplaneMode());
                     return true;
                 case 0x7B:
-                    SetSuspendState(false, false, false);
+                    QueueHookAction("Suspend", () => SetSuspendState(false, false, false));
                     return true;
             }
             return false;

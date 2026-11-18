@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Windows;
+using Microsoft.Win32;
 
 namespace BSCustomClevoController.Utility
 {
@@ -22,6 +23,7 @@ namespace BSCustomClevoController.Utility
     public static class LocalizationManager
     {
         public static event Action LanguageChanged;
+        public static event Action<IReadOnlyDictionary<string, string>> StringsApplied;
 
         private static readonly (string Code, string DefaultName)[] BuiltInOrder =
         {
@@ -48,7 +50,7 @@ namespace BSCustomClevoController.Utility
         private static readonly Dictionary<string, string> EmergencyFallback = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["AppTitle"] = "Control Center",
-            ["NavBrand"] = "Clevo Control",
+            ["NavBrand"] = "Control Center",
             ["NavPerformance"] = "Performance",
             ["NavFan"] = "Fan Control",
             ["NavKeyboard"] = "Keyboard Lighting",
@@ -70,7 +72,15 @@ namespace BSCustomClevoController.Utility
         private static List<LanguageOption> _supportedLanguages = BuildDefaultLanguageList();
         private static Dictionary<string, string> _englishBase = new Dictionary<string, string>(EmergencyFallback, StringComparer.Ordinal);
         private static Dictionary<string, string> _activeStrings = new Dictionary<string, string>(EmergencyFallback, StringComparer.Ordinal);
-        private static ResourceDictionary _activeDictionary;
+
+        public static IReadOnlyDictionary<string, string> GetActiveStringsSnapshot()
+        {
+            lock (SyncLock)
+            {
+                return new ReadOnlyDictionary<string, string>(
+                    new Dictionary<string, string>(_activeStrings, StringComparer.Ordinal));
+            }
+        }
 
         public static IReadOnlyList<LanguageOption> SupportedLanguages
         {
@@ -157,16 +167,27 @@ namespace BSCustomClevoController.Utility
 
         public static void Initialize()
         {
+            Initialize(null, saveToRegistry: true);
+        }
+
+        public static void Initialize(string overrideCode, bool saveToRegistry)
+        {
             ReloadAvailableLanguages();
-            var reg = new RWReg();
-            string code = reg.Check_language();
-            ApplyLanguage(code, saveToRegistry: true);
+            string code = !string.IsNullOrWhiteSpace(overrideCode)
+                ? overrideCode
+                : ResolveSavedOrSystemLanguage();
+            ApplyLanguage(code, saveToRegistry: saveToRegistry);
         }
 
         public static void SetLanguage(string code)
         {
+            SetLanguage(code, saveToRegistry: true);
+        }
+
+        public static void SetLanguage(string code, bool saveToRegistry)
+        {
             ReloadAvailableLanguages();
-            ApplyLanguage(code, saveToRegistry: true);
+            ApplyLanguage(code, saveToRegistry: saveToRegistry);
         }
 
         public static string T(string key)
@@ -327,6 +348,33 @@ namespace BSCustomClevoController.Utility
             }
         }
 
+        private const string AppLanguageRegistryKey = @"HKEY_CURRENT_USER\Software\BSCustomClevoController";
+        private const string AppLanguageRegistryValue = "Language";
+        private const string LegacyLanguageRegistryKey = @"HKEY_CURRENT_USER\Software\ControlCenter3.0\Fan\";
+        private const string LegacyLanguageRegistryValue = "language";
+
+        private static string ResolveSavedOrSystemLanguage()
+        {
+            string raw = Convert.ToString(Registry.GetValue(AppLanguageRegistryKey, AppLanguageRegistryValue, ""), CultureInfo.InvariantCulture);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                raw = Convert.ToString(Registry.GetValue(LegacyLanguageRegistryKey, LegacyLanguageRegistryValue, ""), CultureInfo.InvariantCulture);
+            }
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                raw = string.IsNullOrWhiteSpace(CultureInfo.CurrentUICulture.Name)
+                    ? CultureInfo.CurrentCulture.Name
+                    : CultureInfo.CurrentUICulture.Name;
+            }
+            return NormalizeCode(raw);
+        }
+
+        private static void SaveLanguageToRegistry(string normalizedCode)
+        {
+            Registry.SetValue(AppLanguageRegistryKey, AppLanguageRegistryValue, normalizedCode, RegistryValueKind.String);
+            Registry.SetValue(LegacyLanguageRegistryKey, LegacyLanguageRegistryValue, normalizedCode, RegistryValueKind.String);
+        }
+
         private static void ApplyLanguage(string code, bool saveToRegistry)
         {
             string normalized = NormalizeCode(code);
@@ -336,9 +384,7 @@ namespace BSCustomClevoController.Utility
             {
                 try
                 {
-                    var reg = new RWReg();
-                    reg.WriteLanguage(normalized);
-                    reg.Check_language();
+                    SaveLanguageToRegistry(normalized);
                 }
                 catch (Exception ex)
                 {
@@ -370,23 +416,7 @@ namespace BSCustomClevoController.Utility
                 _activeStrings = mergedStrings;
             }
 
-            if (Application.Current != null)
-            {
-                var dict = new ResourceDictionary();
-                foreach (var kvp in mergedStrings)
-                {
-                    dict["Loc." + kvp.Key] = kvp.Value;
-                }
-
-                var merged = Application.Current.Resources.MergedDictionaries;
-                if (_activeDictionary != null)
-                {
-                    merged.Remove(_activeDictionary);
-                }
-                merged.Add(dict);
-                _activeDictionary = dict;
-            }
-
+            StringsApplied?.Invoke(new ReadOnlyDictionary<string, string>(mergedStrings));
             LanguageChanged?.Invoke();
         }
 

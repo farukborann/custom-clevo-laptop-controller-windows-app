@@ -107,6 +107,7 @@ namespace BSCustomClevoController.Controls
         private static byte _lastTargetBrightness = 255;
         private static int _currentColorPresetIndex = 0;
         private static long _lastColorCycleTicks;
+        private static bool? _cachedMultiZone;
         private static readonly object _backlightAdjustLock = new object();
 
         public static KeyboardHardwareCapabilities GetCapabilities()
@@ -221,6 +222,7 @@ namespace BSCustomClevoController.Controls
                 caps.KeyboardTypeName = "Single-Line RGB (1-Zone)";
             }
 
+            _cachedMultiZone = caps.SupportsMultiZone;
             return caps;
         }
 
@@ -468,7 +470,14 @@ namespace BSCustomClevoController.Controls
         {
             try
             {
-                // Update all keyboard subchannels (240..243) so single-line and multi-zone boards stay in sync.
+                bool multiZone = _cachedMultiZone ?? GetCapabilities().SupportsMultiZone;
+                if (!multiZone)
+                {
+                    // Single-line RGB boards only use subchannel 240; skipping 241..243 avoids 3 extra WMI stalls.
+                    InsydeDriver.SetDCHU_Data(103, new byte[4] { G, R, B, 240 }, 4);
+                    return;
+                }
+
                 for (byte sub = 240; sub <= 243; sub++)
                 {
                     InsydeDriver.SetDCHU_Data(103, new byte[4] { G, R, B, sub }, 4);
@@ -754,6 +763,139 @@ namespace BSCustomClevoController.Controls
             }
         }
 
+        /// <summary>
+        /// Restores saved keyboard lighting during startup in a single minimal pass without redundant
+        /// power-enable toggles or duplicate brightness writes that make the EC backlight flicker.
+        /// </summary>
+        public static void ApplySavedLightingOnStartup(
+            KeyboardStatus kbStatus,
+            KeyboardHardwareCapabilities caps,
+            KeyboardEffect savedEffect,
+            bool shouldStartEffect,
+            byte targetBrightness,
+            bool skipHardwareWrite)
+        {
+            if (skipHardwareWrite)
+            {
+                if (kbStatus.LightState && shouldStartEffect && savedEffect != null && savedEffect.IsSoftware)
+                {
+                    UiDispatcher.Post(() => savedEffect.SetEffect());
+                }
+                return;
+            }
+
+            if (!kbStatus.LightState)
+            {
+                TurnOff();
+                SetSleepTimer(kbStatus.SleepSecond);
+                return;
+            }
+
+            byte zoneState = 0;
+            byte appLightState = 0;
+            byte appMode = 0;
+            InsydeDriver.ReadAppSettings(2, 80, 1, ref zoneState);
+            InsydeDriver.ReadAppSettings(2, 84, 1, ref appLightState);
+            InsydeDriver.ReadAppSettings(2, 32, 1, ref appMode);
+
+            if (shouldStartEffect && savedEffect != null)
+            {
+                if (savedEffect.IsSoftware)
+                {
+                    if (caps.SupportsRgb)
+                    {
+                        if (savedEffect.Id == 8)
+                        {
+                            SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
+                        }
+                        else if (savedEffect.Id == 9 || savedEffect.Id == 10)
+                        {
+                            SetColourRealtime(255, 0, 0);
+                        }
+                    }
+
+                    EnsurePowerEnabledIfNeeded(zoneState, appLightState, needsStaticMode: caps.SupportsRgb && appMode != 8);
+                    SyncPowerAndBrightnessMetadata(targetBrightness);
+                    UiDispatcher.Post(() => savedEffect.SetEffect());
+                }
+                else
+                {
+                    if (!savedEffect.IsIteHardwareEffect && zoneState == 0)
+                    {
+                        InsydeDriver.SetDCHU_Data(103, new byte[4] { 7, 0xB0, 7, 224 }, 4);
+                    }
+
+                    // Skip TurnOn() static mode so hardware effects do not flash static color first.
+                    SetMode(savedEffect, targetBrightness);
+                    SyncPowerAndBrightnessMetadata(targetBrightness);
+                }
+
+                SetSleepTimer(kbStatus.SleepSecond);
+                return;
+            }
+
+            if (caps.SupportsRgb)
+            {
+                if (IsPerZoneColorActive())
+                {
+                    ApplyCurrentStaticColorsRealtime();
+                    Color z0 = GetZoneColour(0);
+                    SyncStaticColorMetadata(z0.R, z0.G, z0.B);
+                }
+                else
+                {
+                    SetColourRealtime(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
+                    SyncStaticColorMetadata(kbStatus.BackLight.R, kbStatus.BackLight.G, kbStatus.BackLight.B);
+                }
+            }
+
+            EnsurePowerEnabledIfNeeded(zoneState, appLightState, needsStaticMode: caps.SupportsRgb && appMode != 8);
+            SetBrightnessRealtime(targetBrightness);
+            SyncPowerAndBrightnessMetadata(targetBrightness);
+            SetSleepTimer(kbStatus.SleepSecond);
+        }
+
+        private static void EnsurePowerEnabledIfNeeded(byte zoneState, byte appLightState, bool needsStaticMode)
+        {
+            if (zoneState == 0)
+            {
+                InsydeDriver.SetDCHU_Data(103, new byte[4] { 7, 0xB0, 7, 224 }, 4);
+            }
+            if (zoneState == 0 || appLightState == 0 || needsStaticMode)
+            {
+                InsydeDriver.SetDCHU_Data(103, new byte[4] { 0, 0, 1, 224 }, 4);
+            }
+        }
+
+        private static void SyncStaticColorMetadata(byte r, byte g, byte b)
+        {
+            byte[] colors = new byte[3] { r, g, b };
+            InsydeDriver.WriteAppSettings(2, 81, 3, ref colors[0]);
+            byte mode = 8;
+            InsydeDriver.WriteAppSettings(2, 32, 1, ref mode);
+        }
+
+        private static void SyncPowerAndBrightnessMetadata(byte brightness)
+        {
+            _lastTargetBrightness = brightness;
+            KeyboardEffects.MaxBrightness = brightness;
+
+            byte bri = brightness;
+            InsydeDriver.WriteAppSettings(2, 35, 1, ref bri);
+            byte one = 1;
+            InsydeDriver.WriteAppSettings(2, 80, 1, ref one);
+            InsydeDriver.WriteAppSettings(2, 84, 1, ref one);
+            try
+            {
+                Registry.SetValue(AppRegistryKey, "KbBrightness", (int)brightness, RegistryValueKind.DWord);
+                Registry.SetValue(AppRegistryKey, "KbLightState", 1, RegistryValueKind.DWord);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log("KeyboardBackLight.SyncPowerAndBrightnessMetadata.Reg", ex);
+            }
+        }
+
         public static void OverrideBootEffect(bool value)
         {
             try
@@ -768,15 +910,22 @@ namespace BSCustomClevoController.Controls
             }
         }
 
+        public static uint BuildSleepTimerCommand(int seconds)
+        {
+            int clamped = Math.Max(0, Math.Min(65535, seconds));
+            return 402653184u | ((uint)clamped << 8) | byte.MaxValue;
+        }
+
         public static void SetSleepTimer(int value)
         {
             try
             {
+                value = Math.Max(0, Math.Min(65535, value));
                 byte active = 1;
                 InsydeDriver.WriteAppSettings(2, 36, 1, ref active);
                 byte[] times = new byte[3] { (byte)(value / 3600), (byte)(value / 60 % 60), (byte)(value % 60) };
                 InsydeDriver.WriteAppSettings(2, 37, 3, ref times[0]);
-                byte[] bytes = BitConverter.GetBytes(402653184 + (value << 8) | byte.MaxValue);
+                byte[] bytes = BitConverter.GetBytes(BuildSleepTimerCommand(value));
                 InsydeDriver.SetDCHU_Data(121, bytes, bytes.Length);
                 try
                 {
@@ -939,7 +1088,10 @@ namespace BSCustomClevoController.Controls
             bool wasOff = !status.LightState;
             bool isBreathing = status.Effect != null && status.Effect.IsBreathingSoftwareEffect;
 
-            TurnOn(isBreathing ? (byte)0 : rawBrightness);
+            if (wasOff)
+            {
+                TurnOn(isBreathing ? (byte)0 : rawBrightness);
+            }
             SetBrightness(rawBrightness);
 
             bool softwareRunning = KeyboardEffect.IsAnySoftwareEffectRunning();
@@ -947,7 +1099,7 @@ namespace BSCustomClevoController.Controls
             {
                 RestoreEffectAtBrightness(status.Effect, status.BackLight, rawBrightness);
             }
-            else if (status.Effect == null && !softwareRunning && GetCapabilities().SupportsRgb)
+            else if (wasOff && status.Effect == null && !softwareRunning && GetCapabilities().SupportsRgb)
             {
                 ApplyCurrentStaticColorsRealtime();
                 SetBrightnessRealtime(rawBrightness);
@@ -977,10 +1129,10 @@ namespace BSCustomClevoController.Controls
 
                 SetBrightnessRealtime(effect.IsBreathingSoftwareEffect ? (byte)0 : rawBrightness);
 
-                System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                UiDispatcher.Post(() =>
                 {
                     effect.SetEffect();
-                }));
+                });
             }
             else
             {

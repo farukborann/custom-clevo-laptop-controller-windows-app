@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Threading;
 using BSCustomClevoController.Utility;
 
 namespace BSCustomClevoController.Controls
@@ -10,7 +11,6 @@ namespace BSCustomClevoController.Controls
 
         public static int Duration = 1000;
 
-        public static KeyboardEffect Random = new KeyboardEffect() { Name = "Random", UniqId = 112, Id = 0 };
         public static KeyboardEffect Breath = new KeyboardEffect() { Name = "Breath", UniqId = 16, Id = 2, IteAnimMode = 0x02 };
         public static KeyboardEffect Cycle = new KeyboardEffect() { Name = "Cycle", UniqId = 51, Id = 3 };
         public static KeyboardEffect Wave = new KeyboardEffect() { Name = "Wave", UniqId = 176, Id = 4, IteAnimMode = 0x03, IteBehaviour = 0x01 };
@@ -33,13 +33,13 @@ namespace BSCustomClevoController.Controls
         public static KeyboardEffect Aurora = new KeyboardEffect() { Name = "Aurora", UniqId = 144, Id = 19, IteAnimMode = 0x0E, IteBehaviour = 0x00 };
         public static KeyboardEffect Spark = new KeyboardEffect() { Name = "Spark", UniqId = 160, Id = 20, IteAnimMode = 0x11, IteBehaviour = 0x00 };
 
-        public static KeyboardEffect SoftwareBreath = new KeyboardEffect() { Name = "Breath", UniqId = 0, Id = 8, Func = BreathEffect, Milliseconds = 16 };
-        public static KeyboardEffect SoftwareCycle = new KeyboardEffect() { Name = "Cycle", UniqId = 0, Id = 9, Func = CycleEffect, Milliseconds = 16 };
-        public static KeyboardEffect SoftwareBreathColor = new KeyboardEffect() { Name = "Colorful Breath", UniqId = 0, Id = 10, Func = ColorfulBreathEffect, Milliseconds = 16 };
+        public static KeyboardEffect SoftwareBreath = new KeyboardEffect() { Name = "Breath", UniqId = 0, Id = 8, Func = BreathEffect, Milliseconds = 25 };
+        public static KeyboardEffect SoftwareCycle = new KeyboardEffect() { Name = "Cycle", UniqId = 0, Id = 9, Func = CycleEffect, Milliseconds = 25 };
+        public static KeyboardEffect SoftwareBreathColor = new KeyboardEffect() { Name = "Colorful Breath", UniqId = 0, Id = 10, Func = ColorfulBreathEffect, Milliseconds = 25 };
 
         public static KeyboardEffect[] Effects = new KeyboardEffect[]
         {
-            Random, Breath, Cycle, Wave, Dance, Tempo, Flash,
+            Breath, Cycle, Wave, Dance, Tempo, Flash,
             WaveLeftRight, WaveRightLeft, WaveBottomTop, WaveTopBottom,
             Reactive, Ripple, Rainbow, Marquee, Raindrop, Aurora, Spark,
             SoftwareBreath, SoftwareCycle, SoftwareBreathColor
@@ -53,7 +53,6 @@ namespace BSCustomClevoController.Controls
 
             if (caps.SupportsHardwareEffects)
             {
-                list.Add(Random);
                 list.Add(Breath);
                 list.Add(Cycle);
 
@@ -81,7 +80,7 @@ namespace BSCustomClevoController.Controls
                 }
             }
 
-            if (allowSoftwareEffects && !IsRunningOnBattery && caps.SupportsBacklight)
+            if (allowSoftwareEffects && caps.SupportsBacklight)
             {
                 if (!caps.SupportsHardwareEffects)
                 {
@@ -124,20 +123,7 @@ namespace BSCustomClevoController.Controls
             return false;
         }
 
-        public static bool IsRunningOnBattery
-        {
-            get
-            {
-                try
-                {
-                    return System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus != System.Windows.Forms.PowerLineStatus.Online;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-        }
+        public static bool IsRunningOnBattery => !NativeMethods.IsAcLineOnline(defaultIfUnknown: true);
 
         public static KeyboardEffect SavedBatterySoftwareEffect { get; set; }
 
@@ -170,8 +156,12 @@ namespace BSCustomClevoController.Controls
         {
             try
             {
+                bool wasSoftwareRunning = KeyboardEffect.IsAnySoftwareEffectRunning();
                 KeyboardEffect.StopAllSoftwareEffects();
-                RestoreStaticLightingAndSleepTimer();
+                if (wasSoftwareRunning)
+                {
+                    RestoreStaticLightingAndSleepTimer();
+                }
             }
             catch (Exception ex)
             {
@@ -239,10 +229,10 @@ namespace BSCustomClevoController.Controls
                     if (effectToResume != null && effectToResume.IsSoftware)
                     {
                         KeyboardBackLight.TurnSleepTimerOff(updateRegistry: false);
-                        System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                        UiDispatcher.Post(() =>
                         {
                             effectToResume.SetEffect();
-                        }));
+                        });
                     }
                 }
             }
@@ -262,13 +252,17 @@ namespace BSCustomClevoController.Controls
             Color.FromArgb(255, 0, 255)
         };
 
-        public static byte MaxBrightness = 255;
+        public static volatile byte MaxBrightness = 255;
         private static int _breathColorIndex = -1;
         private static long _transitionStartTicks = MonotonicClock.NowTicks();
         private static int _lastBrightness = -1;
         private static int _lastR = -1;
         private static int _lastG = -1;
         private static int _lastB = -1;
+        private static int _liveEffectId = -1;
+        private static int _liveColorIndex = 0;
+        private static long _livePhaseBits = BitConverter.DoubleToInt64Bits(0.5);
+        private static long _liveWrittenTicks = MonotonicClock.NowTicks();
 
         public static bool IsBreathingSoftwareEffectRunning()
         {
@@ -278,54 +272,220 @@ namespace BSCustomClevoController.Controls
 
         public static void ResetTime()
         {
-            _transitionStartTicks = MonotonicClock.NowTicks();
-            _breathColorIndex = -1;
-            _lastBrightness = -1;
-            _lastR = -1;
-            _lastG = -1;
-            _lastB = -1;
+            long now = MonotonicClock.NowTicks();
+            Interlocked.Exchange(ref _transitionStartTicks, now);
+            Volatile.Write(ref _breathColorIndex, -1);
+            Volatile.Write(ref _lastBrightness, -1);
+            Volatile.Write(ref _lastR, -1);
+            Volatile.Write(ref _lastG, -1);
+            Volatile.Write(ref _lastB, -1);
+            Volatile.Write(ref _liveEffectId, -1);
+            Volatile.Write(ref _liveColorIndex, 0);
+            Interlocked.Exchange(ref _livePhaseBits, BitConverter.DoubleToInt64Bits(0.5));
+            Interlocked.Exchange(ref _liveWrittenTicks, now);
         }
 
-        private static byte ComputeBreathBrightness(double elapsedMs, double cycleDurationMs)
+        public static bool TryComputeEffectColor(
+            int effectId,
+            int durationMs,
+            double elapsedMs,
+            byte staticR,
+            byte staticG,
+            byte staticB,
+            byte maxBrightness,
+            out byte r,
+            out byte g,
+            out byte b,
+            out byte brightness)
         {
-            double phase = (elapsedMs % cycleDurationMs) / cycleDurationMs;
-            double progress = phase <= 0.5 ? (phase * 2.0) : ((1.0 - phase) * 2.0);
-            double ease = (1.0 - Math.Cos(progress * Math.PI)) / 2.0;
-            return (byte)Math.Round(ease * MaxBrightness);
+            r = staticR;
+            g = staticG;
+            b = staticB;
+            brightness = maxBrightness;
+
+            double safeElapsed = Math.Max(0.0, elapsedMs);
+            if (effectId == 2 || effectId == 8) // Breath / Software Breath
+            {
+                double cycleDuration = Math.Max(200.0, durationMs * 2.0);
+                double phase = (safeElapsed % cycleDuration) / cycleDuration;
+                brightness = ScaleBreathBrightness(phase, maxBrightness);
+                return true;
+            }
+
+            if (effectId == 10) // Colorful Breath
+            {
+                double cycleDuration = Math.Max(200.0, durationMs * 2.0);
+                int colorIdx = (int)(safeElapsed / cycleDuration) % RainbowColors.Length;
+                Color c = RainbowColors[colorIdx];
+                r = c.R;
+                g = c.G;
+                b = c.B;
+                double phase = (safeElapsed % cycleDuration) / cycleDuration;
+                brightness = ScaleBreathBrightness(phase, maxBrightness);
+                return true;
+            }
+
+            if (effectId == 3 || effectId == 9 || effectId == 4 || effectId == 11 || effectId == 12 || effectId == 13 || effectId == 16)
+            {
+                double stepDuration = Math.Max(100.0, durationMs);
+                double totalCycle = stepDuration * RainbowColors.Length;
+                double cycleElapsed = safeElapsed % totalCycle;
+                int fromIndex = (int)(cycleElapsed / stepDuration) % RainbowColors.Length;
+                int toIndex = (fromIndex + 1) % RainbowColors.Length;
+                float t = (float)((cycleElapsed % stepDuration) / stepDuration);
+                Color c = InterpolateColor(RainbowColors[fromIndex], RainbowColors[toIndex], t);
+                r = c.R;
+                g = c.G;
+                b = c.B;
+                brightness = maxBrightness;
+                return true;
+            }
+
+            return false;
+        }
+
+        public static bool TryGetLiveSample(
+            byte staticR,
+            byte staticG,
+            byte staticB,
+            out int effectId,
+            out byte r,
+            out byte g,
+            out byte b,
+            out byte brightness,
+            out double elapsedMs)
+        {
+            KeyboardEffect running = KeyboardEffect.FindSoftwareEffect();
+            if (running != null)
+            {
+                effectId = running.Id;
+                elapsedMs = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks));
+                return TryComputeEffectColor(effectId, Volatile.Read(ref Duration), elapsedMs, staticR, staticG, staticB, MaxBrightness, out r, out g, out b, out brightness);
+            }
+
+            effectId = 0;
+            r = staticR;
+            g = staticG;
+            b = staticB;
+            brightness = MaxBrightness;
+            elapsedMs = 0.0;
+            return false;
+        }
+
+        public static bool TryGetLiveBreathState(int expectedEffectId, out int colorIndex, out double phase)
+        {
+            KeyboardEffect running = KeyboardEffect.FindSoftwareEffect();
+            if (running != null && running.Id == expectedEffectId && (expectedEffectId == 8 || expectedEffectId == 10))
+            {
+                if (Volatile.Read(ref _liveEffectId) == expectedEffectId)
+                {
+                    double cycleDuration = Math.Max(200.0, Volatile.Read(ref Duration) * 2.0);
+                    double committedPhase = BitConverter.Int64BitsToDouble(Interlocked.Read(ref _livePhaseBits));
+                    int committedColor = Volatile.Read(ref _liveColorIndex);
+                    double sinceWriteMs = Math.Max(0.0, MonotonicClock.ElapsedMs(Interlocked.Read(ref _liveWrittenTicks)));
+
+                    // Smoothly bridge between hardware WMI writes without crossing 0% ahead of physical LEDs.
+                    double advanced = committedPhase + Math.Min(sinceWriteMs, 35.0) / cycleDuration;
+                    phase = (committedPhase >= 0.5 && advanced >= 1.0) ? 0.996 : Math.Min(1.0, advanced);
+                    colorIndex = expectedEffectId == 10 ? committedColor : 0;
+                    return true;
+                }
+
+                colorIndex = 0;
+                phase = 0.5;
+                return true;
+            }
+
+            colorIndex = 0;
+            phase = 0.5;
+            return false;
+        }
+
+        private static byte ScaleBreathBrightness(double phase, byte maxBrightness)
+        {
+            if (maxBrightness == 0)
+            {
+                return 0;
+            }
+
+            // Gamma-compensated cosine curve aligns linear LED PWM falloff with perceived screen brightness.
+            double ease = 0.5 - 0.5 * Math.Cos(phase * Math.PI * 2.0);
+            double perceived = Math.Pow(Math.Max(0.0, Math.Min(1.0, ease)), 1.85);
+            int scaled = (int)Math.Round(perceived * maxBrightness);
+            return (byte)Math.Max(0, Math.Min((int)maxBrightness, scaled));
+        }
+
+        private static byte ComputeBreathBrightness(double elapsedMs, double cycleDurationMs, out double phase)
+        {
+            // Offset hardware timer by half cycle so breathing begins smoothly at peak brightness
+            double shifted = elapsedMs + cycleDurationMs * 0.5;
+            phase = (shifted % cycleDurationMs) / cycleDurationMs;
+            return ScaleBreathBrightness(phase, MaxBrightness);
+        }
+
+        private static bool ShouldSendBrightnessWrite(byte targetBrightness)
+        {
+            int prev = _lastBrightness;
+            if (prev < 0) return true;
+            if (targetBrightness == prev) return false;
+            if (targetBrightness == 0 || prev == 0) return true;
+            int minDelta = targetBrightness <= 24 ? 1 : 2;
+            return Math.Abs(targetBrightness - prev) >= minDelta;
+        }
+
+        private static void PublishLiveBreathState(int effectId, int colorIndex, double phase)
+        {
+            Volatile.Write(ref _liveColorIndex, colorIndex);
+            Interlocked.Exchange(ref _livePhaseBits, BitConverter.DoubleToInt64Bits(phase));
+            Interlocked.Exchange(ref _liveWrittenTicks, MonotonicClock.NowTicks());
+            Volatile.Write(ref _liveEffectId, effectId);
         }
 
         public static void BreathEffect(object sender, EventArgs e)
         {
-            double cycleDuration = Math.Max(200.0, Duration * 2.0);
-            double elapsed = MonotonicClock.ElapsedMs(_transitionStartTicks);
-            byte targetBrightness = ComputeBreathBrightness(elapsed, cycleDuration);
+            double cycleDuration = Math.Max(200.0, Volatile.Read(ref Duration) * 2.0);
+            double elapsed = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks));
+            byte targetBrightness = ComputeBreathBrightness(elapsed, cycleDuration, out double phase);
 
-            if (targetBrightness != _lastBrightness)
+            if (ShouldSendBrightnessWrite(targetBrightness))
             {
                 _lastBrightness = targetBrightness;
                 KeyboardBackLight.SetBrightnessRealtime(targetBrightness);
+                PublishLiveBreathState(8, 0, phase);
             }
         }
 
         public static void ColorfulBreathEffect(object sender, EventArgs e)
         {
-            double cycleDuration = Math.Max(200.0, Duration * 2.0);
-            double elapsed = MonotonicClock.ElapsedMs(_transitionStartTicks);
-            int colorIdx = (int)(elapsed / cycleDuration) % RainbowColors.Length;
-            byte targetBrightness = ComputeBreathBrightness(elapsed, cycleDuration);
+            double cycleDuration = Math.Max(200.0, Volatile.Read(ref Duration) * 2.0);
+            double elapsed = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks));
+            double shifted = elapsed + cycleDuration * 0.5;
+            int colorIdx = (int)(shifted / cycleDuration) % RainbowColors.Length;
+            byte targetBrightness = ComputeBreathBrightness(elapsed, cycleDuration, out double phase);
 
-            bool colorChanged = colorIdx != _breathColorIndex;
+            int prevColorIdx = Volatile.Read(ref _breathColorIndex);
+            bool colorChanged = colorIdx != prevColorIdx;
             if (colorChanged)
             {
-                _breathColorIndex = colorIdx;
-                Color baseColor = RainbowColors[_breathColorIndex];
+                if (prevColorIdx >= 0 && _lastBrightness != 0)
+                {
+                    // Drop to 0% before changing color registers so the LED never flashes the next hue.
+                    _lastBrightness = 0;
+                    KeyboardBackLight.SetBrightnessRealtime(0);
+                    targetBrightness = 0;
+                }
+
+                Volatile.Write(ref _breathColorIndex, colorIdx);
+                Color baseColor = RainbowColors[colorIdx];
                 KeyboardBackLight.SetColourRealtime(baseColor.R, baseColor.G, baseColor.B);
+                PublishLiveBreathState(10, colorIdx, prevColorIdx >= 0 ? 0.0 : phase);
             }
 
-            if (colorChanged || targetBrightness != _lastBrightness)
+            if (ShouldSendBrightnessWrite(targetBrightness) || (colorChanged && prevColorIdx < 0))
             {
                 _lastBrightness = targetBrightness;
                 KeyboardBackLight.SetBrightnessRealtime(targetBrightness);
+                PublishLiveBreathState(10, colorIdx, phase);
             }
         }
 
@@ -339,9 +499,9 @@ namespace BSCustomClevoController.Controls
 
         public static void CycleEffect(object sender, EventArgs e)
         {
-            double stepDuration = Math.Max(100.0, Duration);
+            double stepDuration = Math.Max(100.0, Volatile.Read(ref Duration));
             double totalCycle = stepDuration * RainbowColors.Length;
-            double elapsed = MonotonicClock.ElapsedMs(_transitionStartTicks) % totalCycle;
+            double elapsed = MonotonicClock.ElapsedMs(Interlocked.Read(ref _transitionStartTicks)) % totalCycle;
 
             int fromIndex = (int)(elapsed / stepDuration) % RainbowColors.Length;
             int toIndex = (fromIndex + 1) % RainbowColors.Length;
@@ -357,10 +517,11 @@ namespace BSCustomClevoController.Controls
                 KeyboardBackLight.SetColourRealtime(interpolated.R, interpolated.G, interpolated.B);
             }
 
-            if (colorChanged || _lastBrightness != MaxBrightness)
+            byte targetMax = MaxBrightness;
+            if (colorChanged || _lastBrightness != targetMax)
             {
-                _lastBrightness = MaxBrightness;
-                KeyboardBackLight.SetBrightnessRealtime(MaxBrightness);
+                _lastBrightness = targetMax;
+                KeyboardBackLight.SetBrightnessRealtime(targetMax);
             }
         }
 

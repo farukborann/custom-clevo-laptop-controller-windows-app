@@ -31,6 +31,8 @@ namespace BSCustomClevoController.Controls
 
     public static class BatteryControl
     {
+        private static bool? _lastKnownSmartCharge;
+
         private static int GetDCHU_Data_Integer(int command, ref int data)
         {
             return InsydeDriver.GetDCHU_Data_Integer(command, ref data);
@@ -120,6 +122,7 @@ namespace BSCustomClevoController.Controls
                         mode = BatteryChargeMode.Custom;
                     }
 
+                    _lastKnownSmartCharge = enabled;
                     return new BatteryChargeStatus
                     {
                         Enabled = enabled,
@@ -180,6 +183,7 @@ namespace BSCustomClevoController.Controls
 
         private static void PersistBatterySettings(BatteryChargeMode mode, int start, int stop)
         {
+            _lastKnownSmartCharge = mode != BatteryChargeMode.Maximum;
             try
             {
                 Microsoft.Win32.Registry.SetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "BatteryMode", (int)mode, Microsoft.Win32.RegistryValueKind.DWord);
@@ -190,6 +194,35 @@ namespace BSCustomClevoController.Controls
             {
                 AppLogger.Log("BatteryControl.PersistBatterySettings", ex);
             }
+        }
+
+        public static bool IsSmartChargeEnabled()
+        {
+            if (_lastKnownSmartCharge.HasValue)
+            {
+                return _lastKnownSmartCharge.Value;
+            }
+
+            try
+            {
+                object val = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\BSCustomClevoController", "BatteryMode", 0);
+                return val is int intMode && intMode != 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>Maps battery percent and state to Segoe Fluent Icons glyphs (EBA0..EBAA idle, EBAB..EBB5 charging, EBB6..EBC0 smart charge heart).</summary>
+        public static string ResolveBatteryIconGlyph(int percent, bool isCharging, bool smartCharge = false)
+        {
+            int clamped = Math.Max(0, Math.Min(100, percent));
+            int step = (int)Math.Round(clamped / 10.0, MidpointRounding.AwayFromZero);
+            int baseCodePoint = isCharging
+                ? 0xEBAB
+                : (smartCharge ? 0xEBB6 : 0xEBA0);
+            return char.ConvertFromUtf32(baseCodePoint + Math.Max(0, Math.Min(10, step)));
         }
     }
 }

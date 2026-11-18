@@ -25,24 +25,12 @@ namespace BSCustomClevoController.Views
         {
             InitializeComponent();
             ApplyModeUI(PowerMode.GetStatus());
-            InitializeHardwarePolicies();
             LocalizationManager.LanguageChanged += OnLanguageChanged;
         }
 
         private void OnLanguageChanged()
         {
             ApplyModeUI(PowerMode.GetStatus());
-        }
-
-        private void InitializeHardwarePolicies()
-        {
-            bool energyStarSupported = Capabilities.IsSupported("EnergyStar15C");
-            EnergyStarSwitch.IsEnabled = energyStarSupported;
-            EnergyStarCard.Opacity = energyStarSupported ? 1.0 : 0.55;
-
-            bool dynamicTuningSupported = Capabilities.IsSupported("DynamicTuning");
-            DynamicTuningSwitch.IsEnabled = dynamicTuningSupported;
-            DynamicTuningCard.Opacity = dynamicTuningSupported ? 1.0 : 0.55;
         }
 
         public void ApplyModeUI(PowerMode.Mode mode)
@@ -68,7 +56,23 @@ namespace BSCustomClevoController.Views
                     break;
             }
 
-            (Application.Current.MainWindow as MainWindow)?.UpdateTrayTooltip(mode.ToString());
+            string localizedMode;
+            switch (mode)
+            {
+                case PowerMode.Mode.Quiet:
+                    localizedMode = LocalizationManager.T("PerfQuiet");
+                    break;
+                case PowerMode.Mode.Powersaving:
+                    localizedMode = LocalizationManager.T("PerfPowerSaver");
+                    break;
+                case PowerMode.Mode.Performance:
+                    localizedMode = LocalizationManager.T("PerfPerformance");
+                    break;
+                default:
+                    localizedMode = LocalizationManager.T("PerfEntertainment");
+                    break;
+            }
+            (Application.Current.MainWindow as MainWindow)?.UpdateTrayTooltip(localizedMode);
         }
 
         private void SetCardState(Button cardBtn, Border badge, TextBlock badgeText, TextBlock titleText, bool isSelected)
@@ -90,7 +94,27 @@ namespace BSCustomClevoController.Views
         }
 
         private void QuietModeBtn_Click(object sender, RoutedEventArgs e) => SelectPowerMode(PowerMode.Mode.Quiet);
-        private void PowerSaveModeBtn_Click(object sender, RoutedEventArgs e) => SelectPowerMode(PowerMode.Mode.Powersaving);
+
+        private void PowerSaveModeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (PowerMode.GetStatus() != PowerMode.Mode.Powersaving)
+            {
+                var result = MessageBox.Show(
+                    LocalizationManager.T("PerfPowerSaverConfirmMessage",
+                        "Power Saving disables the dedicated GPU to extend battery life. Switching back to another mode will re-enable it.\n\nDo you want to continue?"),
+                    LocalizationManager.T("PerfPowerSaverConfirmTitle", "Switch to Power Saving?"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            SelectPowerMode(PowerMode.Mode.Powersaving);
+        }
+
         private void EntertainmentModeBtn_Click(object sender, RoutedEventArgs e) => SelectPowerMode(PowerMode.Mode.Entertainment);
         private void PerformanceModeBtn_Click(object sender, RoutedEventArgs e) => SelectPowerMode(PowerMode.Mode.Performance);
 
@@ -112,16 +136,6 @@ namespace BSCustomClevoController.Views
         private void PerformanceModeBtn_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             modeDetais.Text = PerformanceModeDesc;
-        }
-
-        private void EnergyStarSwitch_Click(object sender, RoutedEventArgs e)
-        {
-            Capabilities.SetEnergyStar15C(EnergyStarSwitch.IsChecked == true);
-        }
-
-        private void DynamicTuningSwitch_Click(object sender, RoutedEventArgs e)
-        {
-            Capabilities.SetDynamicTuning(DynamicTuningSwitch.IsChecked == true);
         }
     }
 }

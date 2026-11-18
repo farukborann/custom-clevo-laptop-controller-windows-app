@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using Microsoft.Win32;
 using BSCustomClevoController.Controls;
 
@@ -9,12 +10,7 @@ namespace BSCustomClevoController.Utility
     public static partial class SystemPreferences
     {
         [DllImport("ole32.dll")]
-        private static extern int CoInitialize(IntPtr pv);
-
-        [DllImport("ole32.dll")]
-        private static extern void CoUninitialize();
-
-        [DllImport("ole32.dll")]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern uint CoCreateInstance(ref Guid clsid, IntPtr pv, uint ctx, ref Guid iid, out IntPtr ppv);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
@@ -67,6 +63,7 @@ namespace BSCustomClevoController.Utility
         }
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern IntPtr SetupDiGetClassDevs(
             ref Guid ClassGuid,
             [MarshalAs(UnmanagedType.LPStr)] string Enumerator,
@@ -74,12 +71,14 @@ namespace BSCustomClevoController.Utility
             uint Flags);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiEnumDeviceInfo(
             IntPtr DeviceInfoSet,
             uint MemberIndex,
             ref SP_DEVINFO_DATA DeviceInfoData);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiSetClassInstallParams(
             IntPtr DeviceInfoSet,
             ref SP_DEVINFO_DATA DeviceInfoData,
@@ -87,15 +86,18 @@ namespace BSCustomClevoController.Utility
             int ClassInstallParamsSize);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiCallClassInstaller(
             uint InstallFunction,
             IntPtr DeviceInfoSet,
             ref SP_DEVINFO_DATA DeviceInfoData);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
 
         [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool SetupDiGetDeviceInstanceId(
             IntPtr DeviceInfoSet,
             ref SP_DEVINFO_DATA DeviceInfoData,
@@ -104,11 +106,14 @@ namespace BSCustomClevoController.Utility
             out int RequiredSize);
 
         [DllImport("cfgmgr32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern uint CM_Get_DevNode_Status(
             out uint pulStatus,
             out uint pulProblemNumber,
             uint dnDevInst,
             uint ulFlags);
+
+        private static readonly object _dgpuLock = new object();
 
         [ComImport]
         [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
@@ -394,31 +399,34 @@ namespace BSCustomClevoController.Utility
 
         public static void SetDiscreteGpuState(bool enable)
         {
-            try
+            lock (_dgpuLock)
             {
-                string[] discreteGpuFilters = new string[] { "PCI\\VEN_10DE", "PCI\\VEN_1002" };
-
-                if (enable)
+                try
                 {
-                    System.Threading.Thread.Sleep(300);
-                    RunScanDevices();
-                    SetDeviceEnabled(GUID_DEVCLASS_DISPLAY, discreteGpuFilters, true);
-                    RunScanDevices();
+                    string[] discreteGpuFilters = new string[] { "PCI\\VEN_10DE", "PCI\\VEN_1002" };
 
-                    NvidiaPowerControl.ResetDetection();
-                    if (NvidiaPowerControl.IsNvidiaPresent)
+                    if (enable)
                     {
-                        NvidiaPowerControl.SetTgpOffset(NvidiaPowerControl.GetTgpOffset());
+                        Thread.Sleep(300);
+                        RunScanDevices();
+                        SetDeviceEnabled(GUID_DEVCLASS_DISPLAY, discreteGpuFilters, true);
+                        RunScanDevices();
+
+                        NvidiaPowerControl.ResetDetection();
+                        if (NvidiaPowerControl.IsNvidiaPresent)
+                        {
+                            NvidiaPowerControl.SetTgpOffset(NvidiaPowerControl.GetTgpOffset());
+                        }
+                    }
+                    else
+                    {
+                        SetDeviceEnabled(GUID_DEVCLASS_DISPLAY, discreteGpuFilters, false);
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    SetDeviceEnabled(GUID_DEVCLASS_DISPLAY, discreteGpuFilters, false);
+                    AppLogger.Log("SystemPreferences.SetDiscreteGpuState", ex);
                 }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Log("SystemPreferences.SetDiscreteGpuState", ex);
             }
         }
 
@@ -509,26 +517,48 @@ namespace BSCustomClevoController.Utility
             }
 
             SendHKeyMessage(257, (byte)(enable ? 1 : 0));
+            NotifyHardwareStateChanged();
+        }
+
+        private static void ReleaseComObjectSafe(object comObj)
+        {
+            if (comObj != null && Marshal.IsComObject(comObj))
+            {
+                Marshal.ReleaseComObject(comObj);
+            }
         }
 
         public static bool GetMicrophoneState()
         {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDeviceCollection collection = null;
             try
             {
-                if (new MMDeviceEnumeratorComObject() is IMMDeviceEnumerator enumerator &&
-                    enumerator.EnumAudioEndpoints(1, 1, out IMMDeviceCollection collection) == 0 &&
+                enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+                if (enumerator != null &&
+                    enumerator.EnumAudioEndpoints(1, 1, out collection) == 0 &&
                     collection != null)
                 {
                     collection.GetCount(out int count);
                     Guid iid = typeof(IAudioEndpointVolume).GUID;
                     for (int i = 0; i < count; i++)
                     {
-                        if (collection.Item(i, out IMMDevice device) == 0 && device != null &&
-                            device.Activate(ref iid, 23, IntPtr.Zero, out object epObj) == 0 &&
-                            epObj is IAudioEndpointVolume endpointVolume &&
-                            endpointVolume.GetMute(out bool isMuted) == 0)
+                        IMMDevice device = null;
+                        object epObj = null;
+                        try
                         {
-                            return !isMuted;
+                            if (collection.Item(i, out device) == 0 && device != null &&
+                                device.Activate(ref iid, 23, IntPtr.Zero, out epObj) == 0 &&
+                                epObj is IAudioEndpointVolume endpointVolume &&
+                                endpointVolume.GetMute(out bool isMuted) == 0)
+                            {
+                                return !isMuted;
+                            }
+                        }
+                        finally
+                        {
+                            ReleaseComObjectSafe(epObj);
+                            ReleaseComObjectSafe(device);
                         }
                     }
                 }
@@ -536,6 +566,11 @@ namespace BSCustomClevoController.Utility
             catch (Exception ex)
             {
                 AppLogger.Log("SystemPreferences.GetMicrophoneState.Com", ex);
+            }
+            finally
+            {
+                ReleaseComObjectSafe(collection);
+                ReleaseComObjectSafe(enumerator);
             }
 
             try
@@ -588,10 +623,13 @@ namespace BSCustomClevoController.Utility
             _lastMicState = enable;
             _suppressMicOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2500.0);
 
+            IMMDeviceEnumerator enumerator = null;
+            IMMDeviceCollection collection = null;
             try
             {
-                if (new MMDeviceEnumeratorComObject() is IMMDeviceEnumerator enumerator &&
-                    enumerator.EnumAudioEndpoints(1, 1, out IMMDeviceCollection collection) == 0 &&
+                enumerator = new MMDeviceEnumeratorComObject() as IMMDeviceEnumerator;
+                if (enumerator != null &&
+                    enumerator.EnumAudioEndpoints(1, 1, out collection) == 0 &&
                     collection != null)
                 {
                     collection.GetCount(out int count);
@@ -599,11 +637,21 @@ namespace BSCustomClevoController.Utility
                     Guid ctx = Guid.Empty;
                     for (int i = 0; i < count; i++)
                     {
-                        if (collection.Item(i, out IMMDevice device) == 0 && device != null &&
-                            device.Activate(ref iid, 23, IntPtr.Zero, out object epObj) == 0 &&
-                            epObj is IAudioEndpointVolume endpointVolume)
+                        IMMDevice device = null;
+                        object epObj = null;
+                        try
                         {
-                            endpointVolume.SetMute(!enable, ref ctx);
+                            if (collection.Item(i, out device) == 0 && device != null &&
+                                device.Activate(ref iid, 23, IntPtr.Zero, out epObj) == 0 &&
+                                epObj is IAudioEndpointVolume endpointVolume)
+                            {
+                                endpointVolume.SetMute(!enable, ref ctx);
+                            }
+                        }
+                        finally
+                        {
+                            ReleaseComObjectSafe(epObj);
+                            ReleaseComObjectSafe(device);
                         }
                     }
                 }
@@ -611,6 +659,11 @@ namespace BSCustomClevoController.Utility
             catch (Exception ex)
             {
                 AppLogger.Log("SystemPreferences.SetMicrophoneState.Com", ex);
+            }
+            finally
+            {
+                ReleaseComObjectSafe(collection);
+                ReleaseComObjectSafe(enumerator);
             }
 
             string regValue = enable ? "Allow" : "Deny";
@@ -642,40 +695,103 @@ namespace BSCustomClevoController.Utility
             {
                 AppLogger.Log("SystemPreferences.SetMicrophoneState.Ec", ex);
             }
+
+            NotifyHardwareStateChanged();
+        }
+
+        private static T RunInSta<T>(Func<T> action)
+        {
+            if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+            {
+                return action();
+            }
+
+            T result = default;
+            Exception error = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    result = action();
+                }
+                catch (Exception ex)
+                {
+                    error = ex;
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "RadioManagerSta"
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (error != null)
+            {
+                throw error;
+            }
+            return result;
+        }
+
+        private static bool TryOpenRadioManagerVtable(out IntPtr irm, out IntPtr[] methods, out ReleaseDelegate release)
+        {
+            irm = IntPtr.Zero;
+            methods = null;
+            release = null;
+
+            Guid clsid = CLSID_RadioManager;
+            Guid iid = IID_RadioManager;
+            if (CoCreateInstance(ref clsid, IntPtr.Zero, 4, ref iid, out irm) != 0 || irm == IntPtr.Zero)
+            {
+                irm = IntPtr.Zero;
+                return false;
+            }
+
+            IntPtr vtbl = Marshal.ReadIntPtr(irm);
+            if (vtbl == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            methods = new IntPtr[8];
+            Marshal.Copy(vtbl, methods, 0, 8);
+            if (methods[2] == IntPtr.Zero || methods[5] == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            release = (ReleaseDelegate)Marshal.GetDelegateForFunctionPointer(methods[2], typeof(ReleaseDelegate));
+            return true;
         }
 
         public static bool GetAirplaneModeState()
         {
             try
             {
-                CoInitialize(IntPtr.Zero);
-                try
+                return RunInSta(() =>
                 {
                     IntPtr irm = IntPtr.Zero;
-                    Guid clsid = CLSID_RadioManager;
-                    Guid iid = IID_RadioManager;
-                    if (CoCreateInstance(ref clsid, IntPtr.Zero, 4, ref iid, out irm) == 0 && irm != IntPtr.Zero)
+                    ReleaseDelegate release = null;
+                    try
                     {
-                        IntPtr vtbl = Marshal.ReadIntPtr(irm);
-                        IntPtr[] methods = new IntPtr[8];
-                        Marshal.Copy(vtbl, methods, 0, 8);
-
-                        var getState = (GetSystemRadioStateDelegate)Marshal.GetDelegateForFunctionPointer(methods[5], typeof(GetSystemRadioStateDelegate));
-                        var release = (ReleaseDelegate)Marshal.GetDelegateForFunctionPointer(methods[2], typeof(ReleaseDelegate));
-
-                        int res = getState(irm, out int currentState, out _, out _);
-                        release(irm);
-
-                        if (res == 0)
+                        if (TryOpenRadioManagerVtable(out irm, out IntPtr[] methods, out release))
                         {
-                            return currentState == 0;
+                            var getState = (GetSystemRadioStateDelegate)Marshal.GetDelegateForFunctionPointer(methods[5], typeof(GetSystemRadioStateDelegate));
+                            if (getState(irm, out int currentState, out _, out _) == 0)
+                            {
+                                return currentState == 0;
+                            }
                         }
                     }
-                }
-                finally
-                {
-                    CoUninitialize();
-                }
+                    finally
+                    {
+                        if (irm != IntPtr.Zero && release != null)
+                        {
+                            release(irm);
+                        }
+                    }
+                    return false;
+                });
             }
             catch (Exception ex)
             {
@@ -692,37 +808,33 @@ namespace BSCustomClevoController.Utility
             bool toggledViaCom = false;
             try
             {
-                CoInitialize(IntPtr.Zero);
-                try
+                (toggledViaCom, newActiveState) = RunInSta(() =>
                 {
                     IntPtr irm = IntPtr.Zero;
-                    Guid clsid = CLSID_RadioManager;
-                    Guid iid = IID_RadioManager;
-                    if (CoCreateInstance(ref clsid, IntPtr.Zero, 4, ref iid, out irm) == 0 && irm != IntPtr.Zero)
+                    ReleaseDelegate release = null;
+                    try
                     {
-                        IntPtr vtbl = Marshal.ReadIntPtr(irm);
-                        IntPtr[] methods = new IntPtr[8];
-                        Marshal.Copy(vtbl, methods, 0, 8);
-
-                        var getState = (GetSystemRadioStateDelegate)Marshal.GetDelegateForFunctionPointer(methods[5], typeof(GetSystemRadioStateDelegate));
-                        var setState = (SetSystemRadioStateDelegate)Marshal.GetDelegateForFunctionPointer(methods[6], typeof(SetSystemRadioStateDelegate));
-                        var release = (ReleaseDelegate)Marshal.GetDelegateForFunctionPointer(methods[2], typeof(ReleaseDelegate));
-
-                        if (getState(irm, out int currentState, out _, out _) == 0)
+                        if (TryOpenRadioManagerVtable(out irm, out IntPtr[] methods, out release) && methods[6] != IntPtr.Zero)
                         {
-                            int targetState = (currentState == 0) ? 1 : 0;
-                            setState(irm, targetState);
-                            newActiveState = (targetState == 0);
-                            toggledViaCom = true;
+                            var getState = (GetSystemRadioStateDelegate)Marshal.GetDelegateForFunctionPointer(methods[5], typeof(GetSystemRadioStateDelegate));
+                            var setState = (SetSystemRadioStateDelegate)Marshal.GetDelegateForFunctionPointer(methods[6], typeof(SetSystemRadioStateDelegate));
+                            if (getState(irm, out int currentState, out _, out _) == 0)
+                            {
+                                int targetState = (currentState == 0) ? 1 : 0;
+                                setState(irm, targetState);
+                                return (true, targetState == 0);
+                            }
                         }
-
-                        release(irm);
                     }
-                }
-                finally
-                {
-                    CoUninitialize();
-                }
+                    finally
+                    {
+                        if (irm != IntPtr.Zero && release != null)
+                        {
+                            release(irm);
+                        }
+                    }
+                    return (false, false);
+                });
             }
             catch (Exception ex)
             {
@@ -738,6 +850,7 @@ namespace BSCustomClevoController.Utility
             _lastAirplaneState = newActiveState;
             _suppressAirplaneOsdUntilTicks = MonotonicClock.DeadlineFromNowMs(2000.0);
             OsdOverlay.ShowAirplane(newActiveState);
+            NotifyHardwareStateChanged();
             return newActiveState;
         }
     }

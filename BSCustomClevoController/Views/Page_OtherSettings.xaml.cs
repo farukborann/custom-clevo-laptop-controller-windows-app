@@ -181,10 +181,6 @@ namespace BSCustomClevoController.Views
                 {
                     NvidiaTgpCard.Visibility = Visibility.Collapsed;
                 }
-
-                ConfigureCapabilityCard(CpuMultiplierOcSwitch, CpuMultiplierOcCard, CpuMultiplierOcBadge, Capabilities.IsSupported("SupportCPUOC"));
-                ConfigureCapabilityCard(AllModeGpuOcSwitch, AllModeGpuOcCard, AllModeGpuOcBadge, Capabilities.IsSupported("SupportAllModeGPUOC"));
-                ConfigureCapabilityCard(XmpSwitch, XmpCard, XmpBadge, Capabilities.IsSupported("SupportXMP"));
             }
             catch (Exception ex)
             {

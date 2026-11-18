@@ -1,13 +1,7 @@
-using System;
-
 namespace BSCustomClevoController.Utility
 {
 	public class Support_BIT
 	{
-		public void Init_WMI()
-		{
-		}
-
 		public bool OC_CPU = false;
 
 		public bool OC_MEM = false;

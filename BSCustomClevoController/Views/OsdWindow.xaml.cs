@@ -35,6 +35,7 @@ namespace BSCustomClevoController.Views
                 hwnd,
                 NativeMethods.GWL_EXSTYLE,
                 exStyle | NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TOOLWINDOW | NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_TOPMOST);
+            NativeMethods.DisableWindowRoundedCorners(hwnd);
         }
 
         public void Display(string imageName, string text)

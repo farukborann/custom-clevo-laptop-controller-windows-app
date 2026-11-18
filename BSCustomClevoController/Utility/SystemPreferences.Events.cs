@@ -18,6 +18,7 @@ namespace BSCustomClevoController.Utility
         }
 
         [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern IntPtr CreateFileW(
             string filename,
             uint access,
@@ -28,6 +29,7 @@ namespace BSCustomClevoController.Utility
             IntPtr template);
 
         [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool DeviceIoControlWaitEvent(
             IntPtr hDevice,
             uint dwIoControlCode,
@@ -39,6 +41,7 @@ namespace BSCustomClevoController.Utility
             IntPtr overlapped);
 
         [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool DeviceIoControlGetNotify(
             IntPtr hDevice,
             uint dwIoControlCode,
@@ -50,21 +53,29 @@ namespace BSCustomClevoController.Utility
             IntPtr overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool ResetEvent(IntPtr hEvent);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern IntPtr CreateEvent(IntPtr lpEventAttributes, bool bManualReset, bool bInitialState, string lpName);
 
         [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         private static extern bool CloseHandle(IntPtr hObject);
 
         private static long _suppressAirplaneOsdUntilTicks;
         private static long _suppressCameraOsdUntilTicks;
         private static long _suppressMicOsdUntilTicks;
         private static long _suppressEcKeyboardEventsUntilTicks;
+        private static bool? _lastTouchpadState;
+        private static bool? _lastCapsState;
+        private static bool? _lastNumState;
+        private static bool? _lastScrollState;
         private static bool? _lastAirplaneState;
         private static bool? _lastCameraState;
         private static bool? _lastMicState;
@@ -146,19 +157,31 @@ namespace BSCustomClevoController.Utility
                         return;
                     }
 
-                    // Keep ACPI hotkey dispatch active if EC/BIOS reset HKDR/AIRP
-                    if ((ram1[0xD9] & 0x10) == 0 && ram1[0xD9] != 0)
-                    {
-                        int dchu70 = 0;
-                        InsydeDriver.GetDCHU_Data_Integer(70, ref dchu70);
-                        InsydeDriver.SetDCHU_Data(121, new byte[4] { 1, 0, 0, 34 }, 4);
-                    }
-
                     byte oem4 = ram1[0xCC];
                     if (oem4 == 0)
                     {
                         _lastOem4 = 0;
                         return;
+                    }
+
+                    int mappedCode;
+                    switch (oem4)
+                    {
+                        case 0x80: mappedCode = 131; break;
+                        case 0x81:
+                        case 0x20: mappedCode = 129; break;
+                        case 0x82:
+                        case 0x21: mappedCode = 130; break;
+                        case 0x8A: mappedCode = 138; break;
+                        case 0x9E: mappedCode = 158; break;
+                        case 0x9F:
+                        case 0x3F: mappedCode = 159; break;
+                        case 0xF2:
+                        case 0x6B: mappedCode = 112; break;
+                        case 0xF3: mappedCode = 143; break;
+                        case 0xFA: mappedCode = 38; break;
+                        case 0x59: mappedCode = 89; break;
+                        default: return;
                     }
 
                     ClearEcHotkeyByte();
@@ -167,25 +190,7 @@ namespace BSCustomClevoController.Utility
                         return;
                     }
                     _lastOem4 = oem4;
-
-                    switch (oem4)
-                    {
-                        case 0x80: HandleAcpiEvent(131); break;
-                        case 0x81:
-                        case 0x20: HandleAcpiEvent(129); break;
-                        case 0x82:
-                        case 0x21: HandleAcpiEvent(130); break;
-                        case 0x8A: HandleAcpiEvent(138); break;
-                        case 0x9E: HandleAcpiEvent(158); break;
-                        case 0x9F:
-                        case 0x3F: HandleAcpiEvent(159); break;
-                        case 0xF2:
-                        case 0x6B: HandleAcpiEvent(112); break;
-                        case 0xF3: HandleAcpiEvent(143); break;
-                        case 0xFA: HandleAcpiEvent(38); break;
-                        case 0xFB: HandleAcpiEvent(37); break;
-                        case 0x59: HandleAcpiEvent(89); break;
-                    }
+                    HandleAcpiEvent(mappedCode);
                 }
                 catch (Exception ex)
                 {
@@ -229,6 +234,18 @@ namespace BSCustomClevoController.Utility
             }
             catch (Exception ex)
             {
+                if (_clevoEventWatcher != null)
+                {
+                    try
+                    {
+                        _clevoEventWatcher.Dispose();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        AppLogger.Log("SystemPreferences.StartWmiEventWatcher.Dispose", disposeEx);
+                    }
+                    _clevoEventWatcher = null;
+                }
                 AppLogger.Log("SystemPreferences.StartWmiEventWatcher", ex);
             }
         }
@@ -250,28 +267,41 @@ namespace BSCustomClevoController.Utility
             }
         }
 
+        private static readonly object _hsaLock = new object();
+
         public static void StartHsaEventListener()
         {
-            if (_hsaRunning) return;
-            _hsaRunning = true;
-            _hsaListenerThread = new Thread(HsaListenerWorker)
+            lock (_hsaLock)
             {
-                IsBackground = true,
-                Name = "ClevoHsaEventListener"
-            };
-            _hsaListenerThread.Start();
+                if (_hsaRunning || (_hsaListenerThread != null && _hsaListenerThread.IsAlive)) return;
+                _hsaRunning = true;
+                _hsaListenerThread = new Thread(HsaListenerWorker)
+                {
+                    IsBackground = true,
+                    Name = "ClevoHsaEventListener"
+                };
+                _hsaListenerThread.Start();
+            }
         }
 
         public static void StopHsaEventListener()
         {
-            _hsaRunning = false;
-            if (_hsaListenerThread != null)
+            Thread worker;
+            lock (_hsaLock)
             {
-                if (_hsaListenerThread.IsAlive)
+                _hsaRunning = false;
+                worker = _hsaListenerThread;
+            }
+
+            if (worker != null && worker.IsAlive && worker.Join(2000))
+            {
+                lock (_hsaLock)
                 {
-                    _hsaListenerThread.Join(1000);
+                    if (_hsaListenerThread == worker)
+                    {
+                        _hsaListenerThread = null;
+                    }
                 }
-                _hsaListenerThread = null;
             }
         }
 
@@ -297,14 +327,20 @@ namespace BSCustomClevoController.Utility
                 }
 
                 IntPtr hsaEvent = CreateEvent(IntPtr.Zero, true, false, null);
+                if (hsaEvent == IntPtr.Zero)
+                {
+                    CloseHandle(hDevice);
+                    Thread.Sleep(100);
+                    continue;
+                }
                 try
                 {
                     SetAcpiEventListening(true);
                     ACPI_HSA_WAIT_EVENT waitStruct = new ACPI_HSA_WAIT_EVENT { HsaEvent = hsaEvent };
                     byte[] waitOutBuf = new byte[256];
                     uint returned = 0;
-                    DeviceIoControlWaitEvent(hDevice, IOCTL_ACPIBIOS_WAIT_EVENT, ref waitStruct, Marshal.SizeOf(typeof(ACPI_HSA_WAIT_EVENT)), waitOutBuf, 256u, ref returned, IntPtr.Zero);
                     ResetEvent(hsaEvent);
+                    DeviceIoControlWaitEvent(hDevice, IOCTL_ACPIBIOS_WAIT_EVENT, ref waitStruct, Marshal.SizeOf(typeof(ACPI_HSA_WAIT_EVENT)), waitOutBuf, 256u, ref returned, IntPtr.Zero);
 
                     while (_hsaRunning)
                     {
@@ -335,7 +371,7 @@ namespace BSCustomClevoController.Utility
                 }
                 finally
                 {
-                    if (hsaEvent != IntPtr.Zero) CloseHandle(hsaEvent);
+                    CloseHandle(hsaEvent);
                     CloseHandle(hDevice);
                 }
             }
@@ -393,13 +429,17 @@ namespace BSCustomClevoController.Utility
             }
         }
 
+        private static int _pollInFlight;
+        private static volatile bool _pollStopping;
+
         private static void StartHardwareStateWatcher()
         {
             if (_hardwareStatePollTimer != null) return;
+            _pollStopping = false;
             _lastAirplaneState = GetAirplaneModeState();
             _lastCameraState = GetCameraState();
             _lastMicState = GetMicrophoneState();
-            _lastAcState = System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+            _lastAcState = NativeMethods.IsAcLineOnline(defaultIfUnknown: false);
             _lastHardwareFanMode = Fan.GetHardwareFanMode();
             _hardwareStatePollTimer = new Timer(PollHardwareStates, null, 500, 400);
 
@@ -415,6 +455,7 @@ namespace BSCustomClevoController.Utility
 
         private static void StopHardwareStateWatcher()
         {
+            _pollStopping = true;
             try
             {
                 SystemEvents.PowerModeChanged -= SystemEvents_PowerModeChanged;
@@ -428,7 +469,13 @@ namespace BSCustomClevoController.Utility
             {
                 try
                 {
-                    _hardwareStatePollTimer.Dispose();
+                    using (var waitDone = new ManualResetEvent(false))
+                    {
+                        if (_hardwareStatePollTimer.Dispose(waitDone))
+                        {
+                            waitDone.WaitOne(2000);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -446,7 +493,7 @@ namespace BSCustomClevoController.Utility
             }
             if (e.Mode == PowerModes.StatusChange || e.Mode == PowerModes.Resume)
             {
-                bool ac = System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+                bool ac = NativeMethods.IsAcLineOnline(defaultIfUnknown: false);
                 _lastAcState = ac;
                 KeyboardEffects.HandlePowerStatusChanged(ac);
                 PowerLineChanged?.Invoke(ac);
@@ -455,8 +502,18 @@ namespace BSCustomClevoController.Utility
 
         private static void PollHardwareStates(object state)
         {
+            if (_pollStopping || Interlocked.CompareExchange(ref _pollInFlight, 1, 0) != 0)
+            {
+                return;
+            }
             try
             {
+                if (_pollStopping)
+                {
+                    return;
+                }
+                bool hardwareChanged = false;
+
                 bool currentAirplane = GetAirplaneModeState();
                 if (!_lastAirplaneState.HasValue)
                 {
@@ -465,6 +522,7 @@ namespace BSCustomClevoController.Utility
                 else if (_lastAirplaneState.Value != currentAirplane)
                 {
                     _lastAirplaneState = currentAirplane;
+                    hardwareChanged = true;
                     if (!MonotonicClock.IsBefore(_suppressAirplaneOsdUntilTicks))
                     {
                         OsdOverlay.ShowAirplane(currentAirplane);
@@ -479,6 +537,7 @@ namespace BSCustomClevoController.Utility
                 else if (_lastMicState.Value != currentMic)
                 {
                     _lastMicState = currentMic;
+                    hardwareChanged = true;
                     if (!MonotonicClock.IsBefore(_suppressMicOsdUntilTicks))
                     {
                         OsdOverlay.ShowMicrophone(currentMic);
@@ -493,13 +552,59 @@ namespace BSCustomClevoController.Utility
                 else if (_lastCameraState.Value != currentCamera)
                 {
                     _lastCameraState = currentCamera;
+                    hardwareChanged = true;
                     if (!MonotonicClock.IsBefore(_suppressCameraOsdUntilTicks))
                     {
                         OsdOverlay.ShowCamera(currentCamera);
                     }
                 }
 
-                bool currentAc = System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+                bool currentTouchpad = Touchpad.GetTouchpadState();
+                if (!_lastTouchpadState.HasValue)
+                {
+                    _lastTouchpadState = currentTouchpad;
+                }
+                else if (_lastTouchpadState.Value != currentTouchpad)
+                {
+                    _lastTouchpadState = currentTouchpad;
+                    Touchpad.NotifyExternalState(currentTouchpad);
+                    hardwareChanged = true;
+                }
+
+                bool currentCaps = GetCapsLockState();
+                if (!_lastCapsState.HasValue)
+                {
+                    _lastCapsState = currentCaps;
+                }
+                else if (_lastCapsState.Value != currentCaps)
+                {
+                    _lastCapsState = currentCaps;
+                    hardwareChanged = true;
+                }
+
+                bool currentNum = GetNumLockState();
+                if (!_lastNumState.HasValue)
+                {
+                    _lastNumState = currentNum;
+                }
+                else if (_lastNumState.Value != currentNum)
+                {
+                    _lastNumState = currentNum;
+                    hardwareChanged = true;
+                }
+
+                bool currentScroll = GetScrollLockState();
+                if (!_lastScrollState.HasValue)
+                {
+                    _lastScrollState = currentScroll;
+                }
+                else if (_lastScrollState.Value != currentScroll)
+                {
+                    _lastScrollState = currentScroll;
+                    hardwareChanged = true;
+                }
+
+                bool currentAc = NativeMethods.IsAcLineOnline(defaultIfUnknown: false);
                 if (!_lastAcState.HasValue)
                 {
                     _lastAcState = currentAc;
@@ -509,20 +614,37 @@ namespace BSCustomClevoController.Utility
                     _lastAcState = currentAc;
                     KeyboardEffects.HandlePowerStatusChanged(currentAc);
                     PowerLineChanged?.Invoke(currentAc);
+                    hardwareChanged = true;
+                }
+
+                if (hardwareChanged)
+                {
+                    NotifyHardwareStateChanged();
                 }
             }
             catch (Exception ex)
             {
                 AppLogger.Log("SystemPreferences.PollHardwareStates", ex);
             }
+            finally
+            {
+                Interlocked.Exchange(ref _pollInFlight, 0);
+            }
         }
 
         private static void HandleAcpiEvent(int rawEventCode)
         {
-            int eventCode = (rawEventCode == 259 || rawEventCode == 303 || rawEventCode == 304 ||
-                             rawEventCode == 24600 || rawEventCode == 24700 || rawEventCode == 24900)
-                ? rawEventCode
-                : (rawEventCode & 0xFF);
+            if (rawEventCode <= 0)
+            {
+                return;
+            }
+            bool isKnownMultiByte = rawEventCode == 259 || rawEventCode == 303 || rawEventCode == 304 ||
+                                    rawEventCode == 24600 || rawEventCode == 24700 || rawEventCode == 24900;
+            if (rawEventCode > 0xFF && !isKnownMultiByte)
+            {
+                return;
+            }
+            int eventCode = rawEventCode;
 
             lock (_acpiEventLock)
             {

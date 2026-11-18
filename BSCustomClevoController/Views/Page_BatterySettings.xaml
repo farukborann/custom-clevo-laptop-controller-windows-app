@@ -138,7 +138,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="{DynamicResource Loc.BatPowerSource}" FontSize="12" Foreground="{StaticResource Amoled.TextMuted}" />
-                            <TextBlock x:Name="LivePowerSourceText" Grid.Column="1" Text="AC Connected" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                            <TextBlock x:Name="LivePowerSourceText" Grid.Column="1" Text="{DynamicResource Loc.BatStatePluggedIn}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
                         </Grid>
 
                         <Grid Grid.Row="4" Margin="0,0,0,8">
