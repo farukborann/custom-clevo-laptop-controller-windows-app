@@ -1,4 +1,4 @@
-﻿<Controls:MetroWindow
+<Controls:MetroWindow
         x:Class="BSCustomClevoController.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -6,76 +6,117 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
-        Height="720" Width="1280"
+        Height="740" Width="1280"
         WindowStartupLocation="CenterScreen"
-        TitleForeground="#252525"
-        WindowTitleBrush="#D91919"
-        Title="Custom Clevo Controller"
-        BorderThickness="0"
-        ResizeMode="NoResize"
-        ShowIconOnTitleBar="False"
+        Background="{StaticResource Amoled.Background}"
+        WindowTitleBrush="{StaticResource Amoled.Background}"
+        TitleForeground="{StaticResource Amoled.TextPrimary}"
+        NonActiveWindowTitleBrush="#08080A"
+        BorderThickness="1"
+        BorderBrush="{StaticResource Amoled.CardBorder}"
+        Title="{DynamicResource Loc.AppTitle}"
+        ResizeMode="CanMinimize"
+        ShowMinButton="True"
+        ShowMaxRestoreButton="False"
+        ShowIconOnTitleBar="True"
         IgnoreTaskbarOnMaximize="True"
-        Icon="/Assets/main_icon.png" 
-        Closing="MetroWindow_Closing"
-        TextBlock.TextAlignment="Center">
+        Icon="pack://application:,,,/BSCustomClevoController;component/Assets/main_icon.png" 
+        Closing="MetroWindow_Closing">
 
-
-
-    <Controls:HamburgerMenu x:Name="HamburgerMenuControl"
-                            DisplayMode="CompactOverlay" HamburgerWidth="48" 
-                            PaneBackground="#D91919" PaneForeground="#252525" 
-                            ItemClick="HamburgerMenuControl_ItemClick" SelectedIndex="0">
-
-        <Controls:HamburgerMenu.ItemsSource>
-            <Controls:HamburgerMenuItemCollection>
-                <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/PerformanceSettings_Selected.png" Label="Performans Ayarları" Tag="PerformanceSettings"/>
-                <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/KeyboardSettings.png" Label="Klavye Seçenekleri" Tag="KeyboardSettings" />
-                <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/FanSettings.png" Label="Fan Ayarları" Tag="FanSettings" />
-                <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/OtherSettings.png" Label="Diğer Ayarlar" Tag="OtherSettings" />
-            </Controls:HamburgerMenuItemCollection>
-        </Controls:HamburgerMenu.ItemsSource>
-
-        <Controls:HamburgerMenu.ItemTemplate>
-            <DataTemplate>
-                <Grid x:Name="HamburgerItemGrid" Height="50">
-                    
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="48" />
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <Image Source="{Binding Icon}" 
-                           Margin="5" 
-                           VerticalAlignment="Stretch" 
-                           HorizontalAlignment="Stretch" />
-                    <TextBlock Grid.Column="1"  
-                               Margin="8"
-                               VerticalAlignment="Center"
-                               FontSize="16"
-                               Foreground="Black"
-                               Text="{Binding Label}" />
-                </Grid>
-            </DataTemplate>
-        </Controls:HamburgerMenu.ItemTemplate>
-
-        <Controls:HamburgerMenu.HamburgerMenuHeaderTemplate>
-            <DataTemplate>
-                <TextBlock HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   FontSize="16"
-                   Foreground="Black"
-                   Text="Menüler" />
-            </DataTemplate>
-        </Controls:HamburgerMenu.HamburgerMenuHeaderTemplate>
-
-        <Controls:HamburgerMenu.Content>
-            <Grid>
-                
+    <Controls:MetroWindow.IconTemplate>
+        <DataTemplate>
+            <Grid Width="48" HorizontalAlignment="Left" Background="{StaticResource Amoled.InnerCard}" Margin="0">
+                <Image Source="pack://application:,,,/BSCustomClevoController;component/Assets/main_icon.png"
+                       Width="24" Height="24"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
             </Grid>
-        </Controls:HamburgerMenu.Content>
-        
-    </Controls:HamburgerMenu>
+        </DataTemplate>
+    </Controls:MetroWindow.IconTemplate>
 
-    
-    
+    <Grid Background="{StaticResource Amoled.Background}">
+        <Controls:HamburgerMenu x:Name="HamburgerMenuControl"
+                                DisplayMode="CompactOverlay" HamburgerWidth="48" CompactPaneLength="48" OpenPaneLength="230"
+                                PaneBackground="{StaticResource Amoled.InnerCard}" PaneForeground="{StaticResource Amoled.TextPrimary}"
+                                Background="{StaticResource Amoled.Background}"
+                                ItemClick="HamburgerMenuControl_ItemClick" SelectedIndex="0">
+
+            <Controls:HamburgerMenu.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="6,2" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <Border x:Name="RootBorder" Background="{TemplateBinding Background}" CornerRadius="6" SnapsToDevicePixels="True">
+                                    <Grid>
+                                        <Border x:Name="ActiveIndicator" Width="3" CornerRadius="1.5" HorizontalAlignment="Left" Margin="2,4,0,4" Background="Transparent" />
+                                        <ContentPresenter />
+                                    </Grid>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="RootBorder" Property="Background" Value="#15151C" />
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="RootBorder" Property="Background" Value="#1C1C26" />
+                                        <Setter TargetName="ActiveIndicator" Property="Background" Value="{StaticResource Amoled.Accent}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Controls:HamburgerMenu.ItemContainerStyle>
+
+            <Controls:HamburgerMenu.ItemsSource>
+                <Controls:HamburgerMenuItemCollection>
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/PerformanceSettings_Selected.png" Label="{DynamicResource Loc.NavPerformance}" Tag="PerformanceSettings"/>
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/FanSettings.png" Label="{DynamicResource Loc.NavFan}" Tag="FanSettings" />
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/KeyboardSettings.png" Label="{DynamicResource Loc.NavKeyboard}" Tag="KeyboardSettings" />
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/BatterySettings.png" Label="{DynamicResource Loc.NavBattery}" Tag="BatterySettings" />
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/OtherSettings.png" Label="{DynamicResource Loc.NavTools}" Tag="OtherSettings" />
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/Settings.png" Label="{DynamicResource Loc.NavSettings}" Tag="Settings" />
+                    <Controls:HamburgerMenuIconItem Icon="/Assets/Main_Window/About.png" Label="{DynamicResource Loc.NavAbout}" Tag="About" />
+                </Controls:HamburgerMenuItemCollection>
+            </Controls:HamburgerMenu.ItemsSource>
+
+            <Controls:HamburgerMenu.ItemTemplate>
+                <DataTemplate>
+                    <Grid x:Name="HamburgerItemGrid" Height="44" Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="44" />
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Source="{Binding Icon}" 
+                               Width="20" Height="20"
+                               VerticalAlignment="Center" 
+                               HorizontalAlignment="Center" />
+                        <TextBlock Grid.Column="1"  
+                                   Margin="8,0,16,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource Amoled.TextPrimary}"
+                                   Text="{Binding Label}" />
+                    </Grid>
+                </DataTemplate>
+            </Controls:HamburgerMenu.ItemTemplate>
+
+            <Controls:HamburgerMenu.HamburgerMenuHeaderTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,14,16,14">
+                        <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" Text="{DynamicResource Loc.NavBrand}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </DataTemplate>
+            </Controls:HamburgerMenu.HamburgerMenuHeaderTemplate>
+
+            <Controls:HamburgerMenu.Content>
+                <Grid Background="{StaticResource Amoled.Background}" />
+            </Controls:HamburgerMenu.Content>
+        </Controls:HamburgerMenu>
+    </Grid>
 </Controls:MetroWindow>

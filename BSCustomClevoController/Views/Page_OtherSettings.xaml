@@ -1,60 +1,449 @@
-﻿<Page
+<Page
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         x:Class="BSCustomClevoController.Views.Page_OtherSettings"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:BSCustomClevoController.Views"
         mc:Ignorable="d"
         d:DesignHeight="720"
         d:DesignWidth="1280"
-        Background="#252525">
-    
-    <Page.Resources>
-        <Style TargetType="{x:Type Button}">
+        Background="{DynamicResource Amoled.Background}">
 
-            <Setter Property="Background" Value="#D91919" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" BorderThickness="0" BorderBrush="#cccccc">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalAlignment}"
-                            VerticalAlignment="{TemplateBinding VerticalAlignment}" />
+    <Grid Margin="24,16,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="{DynamicResource Loc.ToolsTitle}" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+            <TextBlock Text="{DynamicResource Loc.ToolsSubtitle}" 
+                       FontSize="13" Foreground="{StaticResource Amoled.TextSecondary}" Margin="0,2,0,0" />
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource AmoledCardStyle}" Padding="16,10">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Loc.ToolsHardware}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" Margin="0,0,0,6" />
+
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 10,2 A 8,8 0 1 0 10,18 A 8,8 0 1 0 10,2 Z M 10,5 A 5,5 0 1 0 10,15 A 5,5 0 1 0 10,5 Z M 10,7.5 A 2.5,2.5 0 1 0 10,12.5 A 2.5,2.5 0 1 0 10,7.5 Z"
+                                          Stroke="{StaticResource Amoled.Success}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsWebcam}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsWebcamDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefCameraSwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefCameraBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#cccccc" TargetName="bg" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#cccccc" TargetName="bg" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
 
-        </Style>
-    </Page.Resources>
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 10,2 A 2.5,2.5 0 0 0 7.5,4.5 L 7.5,9.5 A 2.5,2.5 0 0 0 12.5,9.5 L 12.5,4.5 A 2.5,2.5 0 0 0 10,2 Z M 5,8.5 L 5,9.5 A 5,5 0 0 0 9.2,14.4 L 9.2,17 L 7,17 L 7,18.5 L 13,18.5 L 13,17 L 10.8,17 L 10.8,14.4 A 5,5 0 0 0 15,9.5 L 15,8.5 L 13.5,8.5 L 13.5,9.5 A 3.5,3.5 0 0 1 6.5,9.5 L 6.5,8.5 Z"
+                                          Fill="{StaticResource Amoled.Accent}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsMic}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsMicDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefMicSwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefMicBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
 
-    <Grid>
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 10,2 L 12,8 L 18,11 L 18,12.5 L 12,11.5 L 12,15.5 L 14,17.5 L 14,19 L 10,18 L 6,19 L 6,17.5 L 8,15.5 L 8,11.5 L 2,12.5 L 2,11 L 8,8 Z"
+                                          Fill="{StaticResource Amoled.Warning}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsAirplane}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsAirplaneDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefAirplaneSwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefAirplaneBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
 
-        <Button x:Name="TouchPadToggle" Click="TouchPadToggle_Click"
-                Width="150"  HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,350,975,0" >
-            <AccessText TextWrapping="Wrap" Text="TouchPad On/Off" FontSize="20" TextBlock.TextAlignment="Center" />
-        </Button>
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="1" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" HorizontalAlignment="Center" Margin="6,1">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsCapsLock}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                                    <CheckBox x:Name="PrefCapsSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefCapsLockBtn_Click" HorizontalAlignment="Center" />
+                                </StackPanel>
+                                <Rectangle Grid.Column="1" Fill="{StaticResource Amoled.InnerCardBorder}" Margin="0,2" />
+                                <StackPanel Grid.Column="2" HorizontalAlignment="Center" Margin="6,1">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsNumLock}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                                    <CheckBox x:Name="PrefNumSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefNumLockBtn_Click" HorizontalAlignment="Center" />
+                                </StackPanel>
+                                <Rectangle Grid.Column="3" Fill="{StaticResource Amoled.InnerCardBorder}" Margin="0,2" />
+                                <StackPanel Grid.Column="4" HorizontalAlignment="Center" Margin="6,1">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsScrollLock}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                                    <CheckBox x:Name="PrefScrSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefScrLockBtn_Click" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
-        <TextBlock Text="Driver Supports for Enthusiasts" FontSize="15" Foreground="#cccccc" Width="250" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,150,150,0" />
-        <ListBox x:Name="FeaturesListBox" Width="350" VerticalAlignment="Top" HorizontalAlignment="Center" Height="300" Margin="0,200,150,0" />
+                        <Grid Margin="0,2,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{DynamicResource Loc.ToolsKeyboardHeader}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" VerticalAlignment="Center" />
+                            <Button x:Name="ResetKeyboardPrefsBtn" Grid.Column="1" Content="{DynamicResource Loc.CommonResetDefaults}" Style="{StaticResource AmoledButtonStyle}" MinHeight="24" Padding="10,2" FontSize="10" Click="ResetKeyboardPrefsBtn_Click" VerticalAlignment="Center" />
+                        </Grid>
 
-        <TextBlock Text="It was developed experimentally by Boran Software. All responsibility belongs to the user."
-                   Foreground="#cccccc" TextWrapping="Wrap" FontSize="25"
-                   Width="350" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,250,50,0" />
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 2,2 H 8 V 8 H 2 Z M 10,2 H 16 V 8 H 10 Z M 2,10 H 8 V 16 H 2 Z M 10,10 H 16 V 16 H 10 Z"
+                                          Fill="{StaticResource Amoled.Accent}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsWinLock}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsWinLockDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefWinKeySwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefWinKeyBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
 
-        <Button x:Name="Exit" Click="Exit_Click"
-                Width="150"  HorizontalAlignment="Center" VerticalAlignment="Top" Margin="800,400,0,0" >
-            <AccessText TextWrapping="Wrap" Text="Exit Program" FontSize="20" TextBlock.TextAlignment="Center" />
-        </Button>
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 3,6 H 13 M 10,3 L 13,6 L 10,9 M 15,12 H 5 M 8,9 L 5,12 L 8,15"
+                                          Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsSwapWinFn}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock x:Name="PrefSwapWinFnSubtitle" Text="{DynamicResource Loc.ToolsSwapWinFnDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefSwapWinFnSwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefSwapWinFnBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Border Width="18" Height="14" CornerRadius="3" BorderBrush="{StaticResource Amoled.Accent}" BorderThickness="1.5" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="Fn" FontSize="8.5" FontWeight="Bold" Foreground="{StaticResource Amoled.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
+                                    </Border>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsFnLock}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsFnLockDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefFnLockSwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefFnLockBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 2,4 C 2,3 3,2 4,2 H 16 C 17,2 18,3 18,4 V 14 C 18,15 17,16 16,16 H 4 C 3,16 2,15 2,14 Z M 2,12 H 18 M 10,12 V 16"
+                                          Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.5" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsTouchpad}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsTouchpadDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <CheckBox x:Name="PrefTouchpadSwitch" Grid.Column="2" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefTouchpadBtn_Click" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="{DynamicResource Loc.ToolsPlatformHeader}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" Margin="0,2,0,6" />
+
+                        <Border x:Name="PrefWolCard" Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 2,14 H 18 M 5,14 V 18 M 15,14 V 18 M 3,18 H 17 M 10,2 A 5,5 0 0 1 15,7 M 10,5 A 2,2 0 0 1 12,7"
+                                          Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.5" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsWol}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsWolDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Border x:Name="PrefWolBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
+                                    </Border>
+                                    <CheckBox x:Name="PrefWolSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefWolBtn_Click" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="PrefEthLedCard" Style="{StaticResource SubCardStyle}" Padding="10,4" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 4,4 H 16 V 12 H 13 V 15 H 7 V 12 H 4 Z M 8,8 H 12"
+                                          Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.5" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsEthLed}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsEthLedDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Border x:Name="PrefEthLedBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
+                                    </Border>
+                                    <CheckBox x:Name="PrefEthLedSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" Click="PrefEthLedBtn_Click" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="PrefUsbResetCard" Style="{StaticResource SubCardStyle}" Padding="10,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="30" Height="30" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 10,2 V 14 M 6,6 L 10,2 L 14,6 M 10,14 A 2,2 0 1 1 10,18 A 2,2 0 1 1 10,14"
+                                          Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.5" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsUsbReset}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsUsbResetDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Border x:Name="PrefUsbResetBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
+                                    </Border>
+                                    <Button x:Name="PrefUsbResetBtn" Content="{DynamicResource Loc.ToolsUsbResetBtn}" Style="{StaticResource AmoledButtonStyle}" MinHeight="28" Padding="10,3" FontSize="11" Click="PrefUsbResetBtn_Click" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource AmoledCardStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Loc.ToolsDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" Margin="0,0,0,8" />
+
+                        <Border Style="{StaticResource SubCardStyle}" Padding="10,8" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                        <Path Data="M 10,3 A 7,7 0 1 1 4,7 M 4,3 V 7 H 8"
+                                              Stroke="{StaticResource Amoled.Success}" StrokeThickness="1.5" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Loc.ToolsRefreshRate}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                        <TextBlock Text="{DynamicResource Loc.ToolsRefreshDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                    </StackPanel>
+                                    <Border x:Name="RefreshRateBadge" Grid.Column="2" Background="#1B3E32" BorderBrush="{StaticResource Amoled.Success}" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <TextBlock x:Name="RefreshRateCurrentText" Text="144 Hz" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Amoled.Success}" />
+                                    </Border>
+                                </Grid>
+                                <Grid Grid.Row="1" Margin="42,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="Refresh60Btn" Grid.Column="0" Content="{DynamicResource Loc.ToolsRefresh60Btn}" Style="{StaticResource AmoledButtonStyle}" MinHeight="32" Padding="10,4" FontSize="11" Click="Refresh60Btn_Click" />
+                                    <Button x:Name="RefreshNativeBtn" Grid.Column="2" Content="{DynamicResource Loc.ToolsRefreshHighBtn}" Style="{StaticResource AmoledAccentButtonStyle}" MinHeight="32" Padding="10,4" FontSize="11" Click="RefreshNativeBtn_Click" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="GpuMuxCard" Style="{StaticResource SubCardStyle}" Padding="10,8" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="32" Height="32" CornerRadius="6" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,10,0">
+                                    <Path Data="M 3,6 H 8 V 14 H 3 Z M 12,6 H 17 V 14 H 12 Z M 8,10 H 12"
+                                          Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.5" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="{DynamicResource Loc.ToolsGpuMuxTitle}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{DynamicResource Loc.ToolsGpuMuxDesc}" FontSize="10" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Border x:Name="GpuMuxBadge" Background="#1C1C24" BorderBrush="#3C3C46" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock x:Name="GpuMuxBadgeText" Text="{DynamicResource Loc.CommonNotSupported}" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" />
+                                    </Border>
+                                    <CheckBox x:Name="GpuMuxSwitch" Style="{StaticResource AmoledToggleSwitchStyle}" Click="GpuMuxSwitch_Click" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel x:Name="PerformanceTuningSection">
+                            <TextBlock Text="{DynamicResource Loc.ToolsPerfOcHeader}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextSecondary}" Margin="0,0,0,6" />
+
+                            <Border x:Name="CpuPerformanceCard" Style="{StaticResource SubCardStyle}" Padding="10,6" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="26" Height="26" CornerRadius="5" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,8,0">
+                                                <Path Data="M 4,4 H 16 V 16 H 4 Z M 7,7 H 13 V 13 H 7 Z M 2,7 H 4 M 2,10 H 4 M 2,13 H 4 M 16,7 H 18 M 16,10 H 18 M 16,13 H 18 M 7,2 V 4 M 10,2 V 4 M 13,2 V 4 M 7,16 V 18 M 10,16 V 18 M 13,16 V 18"
+                                                      Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource Loc.ToolsCpuPowerTitle}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                                <TextBlock x:Name="CpuNameText" Text="Processor" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Border x:Name="CpuOcBadge" Grid.Column="1" Background="#1B3E32" BorderBrush="{StaticResource Amoled.Success}" BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                                            <TextBlock x:Name="CpuOcBadgeText" Text="{DynamicResource Loc.ToolsGpuStockBadge}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Amoled.Success}" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Slider x:Name="CpuPowerSlider" Grid.Row="1" Minimum="0" Maximum="25" SmallChange="5" LargeChange="5"
+                                            TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,4" VerticalAlignment="Center"
+                                            Style="{StaticResource AmoledSliderStyle}"
+                                            ValueChanged="CpuPowerSlider_ValueChanged" />
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="CpuOcDescriptionText" Text="{DynamicResource Loc.ToolsCpuOcLockedDesc}" 
+                                                   FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" LineHeight="13" />
+                                        <TextBlock x:Name="CpuOcStatusSubText" Grid.Column="1" Text="{DynamicResource Loc.ToolsCpuStockSub}" FontSize="9" Foreground="{StaticResource Amoled.TextSecondary}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <Border x:Name="NvidiaTgpCard" Style="{StaticResource SubCardStyle}" Padding="10,6" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="26" Height="26" CornerRadius="5" Background="{StaticResource Amoled.CardBackground}" BorderBrush="{StaticResource Amoled.CardBorder}" BorderThickness="1" Margin="0,0,8,0">
+                                                <Path Data="M 2,4 H 18 V 16 H 2 Z M 5,8 H 9 V 12 H 5 Z M 11,8 H 15 V 12 H 11 Z"
+                                                      Stroke="{StaticResource Amoled.Accent}" StrokeThickness="1.4" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{DynamicResource Loc.ToolsGpuPowerTitle}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Amoled.TextPrimary}" />
+                                                <TextBlock x:Name="NvidiaGpuNameText" Text="NVIDIA GeForce" FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" Margin="0,1,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Background="#1B3E32" BorderBrush="{StaticResource Amoled.Success}" BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TgpOffsetText" Text="{DynamicResource Loc.ToolsGpuStockBadge}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Amoled.Success}" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Slider x:Name="TgpOffsetSlider" Grid.Row="1" Minimum="0" Maximum="25" SmallChange="5" LargeChange="5"
+                                            TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,4,0,4" VerticalAlignment="Center"
+                                            Style="{StaticResource AmoledSliderStyle}"
+                                            ValueChanged="TgpOffsetSlider_ValueChanged" />
+
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource Loc.ToolsGpuPowerDesc}" 
+                                                   FontSize="9" Foreground="{StaticResource Amoled.TextMuted}" TextWrapping="Wrap" VerticalAlignment="Center" LineHeight="13" />
+                                        <TextBlock Grid.Column="1" Text="{DynamicResource Loc.ToolsGpuPowerRange}" FontSize="9" Foreground="{StaticResource Amoled.TextSecondary}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
     </Grid>
-    
 </Page>

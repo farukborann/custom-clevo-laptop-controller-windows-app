@@ -1,0 +1,46 @@
+<Window x:Class="BSCustomClevoController.Views.OsdWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OSD"
+        Height="184" Width="184"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        Focusable="False"
+        ShowActivated="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual">
+
+    <Grid>
+        <Border Background="#CC000000"
+                BorderThickness="0"
+                CornerRadius="0"
+                SnapsToDevicePixels="True">
+            <Grid>
+                <Image x:Name="OsdIcon"
+                       Height="77"
+                       MaxWidth="184"
+                       Margin="0,24,0,0"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Top"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+
+                <Grid Margin="4,101,4,0" Height="83" VerticalAlignment="Top">
+                    <TextBlock x:Name="OsdText"
+                               Text="{DynamicResource Loc.OsdDefaultStatus}"
+                               FontSize="14"
+                               FontWeight="Normal"
+                               FontFamily="Segoe UI"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

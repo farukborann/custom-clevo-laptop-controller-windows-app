@@ -1,0 +1,98 @@
+;
+; AcpiBridge1.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System ; TODO: specify appropriate Class
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Provider= %ManufacturerName%
+CatalogFile=AcpiBridge1.cat
+DriverVer=08/09/2024, 6.0.91.1 ; TODO: set DriverVer in stampinf property pages
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+AcpiBridge1.sys  = 1
+DCHUService.exe = 1
+WakePanelUp_Hook.exe = 1
+;---------For DCHU
+InsydeDCHU.dll = 1
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+;%CLEVOCO% = Components,NTx86.10.0...16299
+;%CLEVOCO% = Components,NTamd64.10.0...16299
+CLV=CLV,NTamd64.10.0...16299
+
+;[Components.NTx86.10.0...16299]
+;%AcpiBridge1Desc% = Component_Install.NTx86,ACPI\CLV0002
+
+;[Components.NTamd64.10.0...16299]
+;%AcpiBridge1Desc% = Component_Install.NTamd64,ACPI\CLV0002
+
+;[Component_Install.NTx86]
+;CopyFiles=Drivers_Dir
+
+;[Component_Install.NTamd64]
+;CopyFiles=Drivers_Dir
+
+;[Component_Install.NTx86.Services]
+;AddService = , 0x00000002,
+;AddService = CCDCHUService,%SPSVCINST_ASSOCSERVICE%, AcpiBridge1_Service_Inst
+
+;[Component_Install.NTamd64.Services]
+;AddService = , 0x00000002,
+;AddService = CCDCHUService,%SPSVCINST_ASSOCSERVICE%, AcpiBridge1_Service_Inst
+
+[CLV.NTamd64.10.0...16299]
+"Acpi Bridge1"=AcpiBridge1_Device, ACPI\CLV0002 ; TODO: edit hw-id
+
+[AcpiBridge1_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+AcpiBridge1.sys
+DCHUService.exe
+WakePanelUp_Hook.exe
+;---------For DCHU
+InsydeDCHU.dll
+
+;-------------- Service installation
+[AcpiBridge1_Device.NT.Services]
+AddService = , 0x00000002,
+AddService = CCDCHUService,%SPSVCINST_ASSOCSERVICE%, AcpiBridge1_Service_Inst
+
+; -------------- AcpiBridge1 driver install sections
+[AcpiBridge1_Service_Inst]
+DisplayName    = %AcpiBridge1.SVCDESC%
+ServiceType    = 0x00000010      ; SERVICE_KERNEL_DRIVER
+StartType      = 2               ; SERVICE_AUTO_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\DCHUService.exe
+
+[AcpiBridge1_Device.NT.Software]
+AddSoftware = ClevoCtrlPnl,,Software_Inst
+
+[Software_Inst]
+SoftwareType = 2
+SoftwareVersion = 3.55.1.0
+SoftwareID = pfn://CLEVOCO.FnhotkeysandOSD_6h6z29zh29qx0
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000800
+ManufacturerName="CLEVO" ;TODO: Replace with your manufacturer name
+DiskName = "AcpiBridge1 Installation Disk"
+AcpiBridge1.DeviceDesc = "AcpiBridge1 Device"
+AcpiBridge1.SVCDESC = "Control Center Hotkey Service"
+CLEVOCO="CLEVO CO."
+AcpiBridge1Desc = "AcpiBridge1 Device"
+

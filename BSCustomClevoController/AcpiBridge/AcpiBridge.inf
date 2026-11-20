@@ -1,0 +1,105 @@
+;
+; AcpiBridge.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System ;Sample
+ClassGuid= {4d36e97d-e325-11ce-bfc1-08002be10318} ;{78A1C341-4539-11d3-B88D-00C04FAD5171}
+Provider=%ManufacturerName%
+CatalogFile=AcpiBridge.cat
+DriverVer = 05/21/2024,1.0.0.8
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 12
+AcpiBridge_Device_CoInstaller_CopyFiles = 11
+
+; ================= Class section =====================
+
+;[ClassInstall32]
+;Addreg=SampleClassReg
+
+;[SampleClassReg]
+;HKR,,,0,%ClassName%
+;HKR,,Icon,,-5
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+AcpiBridge.sys  = 1,,
+;
+
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTamd64
+
+[Standard.NTamd64]
+%AcpiBridge.DeviceDesc%=AcpiBridge_Device, ACPI\CLV0001
+
+[AcpiBridge_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+AcpiBridge.sys
+
+;-------------- Service installation
+[AcpiBridge_Device.NT.Services]
+AddService = AcpiBridge,%SPSVCINST_ASSOCSERVICE%, AcpiBridge_Service_Inst
+
+; -------------- AcpiBridge driver install sections
+[AcpiBridge_Service_Inst]
+DisplayName    = %AcpiBridge.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\AcpiBridge.sys
+
+;
+;--- AcpiBridge_Device Coinstaller installation ------
+;
+
+[AcpiBridge_Device.NT.CoInstallers]
+AddReg=AcpiBridge_Device_CoInstaller_AddReg
+CopyFiles=AcpiBridge_Device_CoInstaller_CopyFiles
+
+[AcpiBridge_Device_CoInstaller_AddReg]
+;
+
+
+[AcpiBridge_Device_CoInstaller_CopyFiles]
+;
+
+
+[AcpiBridge_Device.NT.Wdf]
+KmdfService =  AcpiBridge, AcpiBridge_wdfsect
+
+[AcpiBridge_wdfsect]
+KmdfLibraryVersion = 1.15
+
+;
+;--- AcpiBridge Interface Installation ------
+;
+[AcpiBridge_Device.NT.Interfaces]
+AddInterface= {86994c74-ad43-4812-b7e7-0c420b5c5fd7},,AddInterfaceSection
+
+[AddInterfaceSection]
+AddProperty= AddInterfaceSection.AddProps
+
+[AddInterfaceSection.AddProps]
+; DEVPKEY_DeviceInterface_UnrestrictedAppCapabilities
+{026e516e-b814-414b-83cd-856d6fef4822}, 8, 0x2012,, %CustomCapability%
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName = "Insyde"
+ClassName = "Acpi Bios"
+DiskName = "Acpi Bridge Installation Disk"
+AcpiBridge.DeviceDesc = "Acpi Bridge"
+AcpiBridge.SVCDESC = "Acpi Bridge Service"
+CustomCapability = "Clevo.BiosDchuDriver_6h6z29zh29qx0"

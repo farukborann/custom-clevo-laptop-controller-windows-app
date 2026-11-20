@@ -1,9 +1,9 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
     <ProjectGuid>{FC756859-E319-40FA-8C63-EAE7BFCC742F}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>BSCustomClevoController</RootNamespace>
@@ -14,9 +14,12 @@
     <WarningLevel>4</WarningLevel>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ApplicationIcon>Assets\main_icon.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -24,15 +27,17 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
@@ -62,7 +67,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>true</Prefer32Bit>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutputPath>bin\x64\Release\</OutputPath>
@@ -72,14 +77,11 @@
     <PlatformTarget>x64</PlatformTarget>
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
-    <Prefer32Bit>true</Prefer32Bit>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ControlzEx, Version=5.0.0.0, Culture=neutral, PublicKeyToken=69f1c32f803d307e, processorArchitecture=MSIL">
       <HintPath>..\packages\ControlzEx.5.0.1\lib\net462\ControlzEx.dll</HintPath>
-    </Reference>
-    <Reference Include="Hardcodet.NotifyIcon.Wpf, Version=1.1.0.0, Culture=neutral, PublicKeyToken=682384a853a08aad, processorArchitecture=MSIL">
-      <HintPath>..\packages\Hardcodet.NotifyIcon.Wpf.1.1.0\lib\net472\Hardcodet.NotifyIcon.Wpf.dll</HintPath>
     </Reference>
     <Reference Include="MahApps.Metro, Version=2.0.0.0, Culture=neutral, PublicKeyToken=51482d6f650b2b3f, processorArchitecture=MSIL">
       <HintPath>..\packages\MahApps.Metro.2.4.9\lib\net47\MahApps.Metro.dll</HintPath>
@@ -90,17 +92,11 @@
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.Configuration" />
-    <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
-    <Reference Include="System.Web" />
-    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="System.Net.Http" />
     <Reference Include="System.Xaml">
       <RequiredTargetFramework>4.0</RequiredTargetFramework>
     </Reference>
@@ -113,24 +109,49 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Lib\FanControl\Clevo\CleDef.cs" />
-    <Compile Include="Lib\FanControl\Clevo_MSG.cs" />
-    <Compile Include="Lib\FanControl\DebugLog.cs" />
-    <Compile Include="Lib\FanControl\FAN.cs" />
-    <Compile Include="Lib\FanControl\Global.cs" />
-    <Compile Include="Lib\FanControl\InsydeDriver.cs" />
-    <Compile Include="Lib\FanControl\language.cs" />
-    <Compile Include="Lib\FanControl\RWIni.cs" />
-    <Compile Include="Lib\FanControl\RWReg.cs" />
-    <Compile Include="Lib\FanControl\Support_BIT.cs" />
+    <Compile Include="Utility\Clevo_MSG.cs" />
+    <Compile Include="Utility\DebugLog.cs" />
+    <Compile Include="Utility\Global.cs" />
+    <Compile Include="Utility\InsydeDriver.cs" />
+    <Compile Include="Utility\language.cs" />
+    <Compile Include="Utility\LocalizationManager.cs" />
+    <Compile Include="Utility\RWIni.cs" />
+    <Compile Include="Utility\RWReg.cs" />
+    <Compile Include="Utility\Support_BIT.cs" />
+    <Compile Include="Utility\UiDispatcher.cs" />
+
+
+
+
+
+
+
+
+
+    <Compile Include="Controls\BatteryControl.cs" />
+    <Compile Include="Utility\AppLogger.cs" />
     <Compile Include="Utility\Capabilities.cs" />
-    <Compile Include="Utility\Fan.cs" />
-    <Compile Include="Utility\KeyboardBackLight.cs" />
-    <Compile Include="Utility\KeyboardEffects.cs" />
-    <Compile Include="Utility\Monitor.cs" />
-    <Compile Include="Utility\PowerMode.cs" />
-    <Compile Include="Utility\Structs.cs" />
-    <Compile Include="Utility\Touchpad.cs" />
+    <Compile Include="Controls\CpuPowerControl.cs" />
+    <Compile Include="Controls\DisplayControl.cs" />
+    <Compile Include="Controls\Fan.cs" />
+    <Compile Include="Utility\HardwareDetector.cs" />
+    <Compile Include="Controls\IteHidController.cs" />
+    <Compile Include="Controls\KeyboardBackLight.cs" />
+    <Compile Include="Controls\KeyboardEffect.cs" />
+    <Compile Include="Controls\KeyboardEffects.cs" />
+    <Compile Include="Utility\MonotonicClock.cs" />
+    <Compile Include="Utility\NativeMethods.cs" />
+    <Compile Include="Controls\NvidiaPowerControl.cs" />
+    <Compile Include="Controls\PowerMode.cs" />
+    <Compile Include="Utility\ProcessRunner.cs" />
+    <Compile Include="Utility\StartupManager.cs" />
+    <Compile Include="Utility\SystemPreferences.cs" />
+    <Compile Include="Utility\SystemPreferences.Devices.cs" />
+    <Compile Include="Utility\SystemPreferences.Events.cs" />
+    <Compile Include="Utility\SystemPreferences.KeyboardHook.cs" />
+    <Compile Include="Utility\AcpiDriverInstaller.cs" />
+    <Compile Include="Controls\Touchpad.cs" />
+    <Compile Include="Utility\OsdOverlay.cs" />
     <Compile Include="Views\Page_KeyboardSettings.xaml.cs">
       <DependentUpon>Page_KeyboardSettings.xaml</DependentUpon>
     </Compile>
@@ -140,10 +161,23 @@
     <Compile Include="Views\Page_OtherSettings.xaml.cs">
       <DependentUpon>Page_OtherSettings.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Views\Page_BatterySettings.xaml.cs">
+      <DependentUpon>Page_BatterySettings.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\Page_PerformanceSettings.xaml.cs">
       <DependentUpon>Page_PerformanceSettings.xaml</DependentUpon>
     </Compile>
-    <Page Include="Dark.RedBlack.xaml">
+    <Compile Include="Views\Page_Settings.xaml.cs">
+      <DependentUpon>Page_Settings.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Page_About.xaml.cs">
+      <DependentUpon>Page_About.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\OsdWindow.xaml.cs">
+      <DependentUpon>OsdWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\UiFocusHelper.cs" />
+    <Page Include="Dark.BlueBlack.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -167,11 +201,27 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Views\Page_BatterySettings.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="Views\Page_OtherSettings.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Views\Page_PerformanceSettings.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Page_Settings.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Page_About.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\OsdWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -201,6 +251,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Localization\*.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
@@ -212,9 +267,30 @@
     <None Include="InsydeDCHU.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="AcpiBridge\AcpiBridge.inf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="AcpiBridge\AcpiBridge.sys">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="AcpiBridge\acpibridge.cat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="AcpiBridge\AcpiBridge1.Inf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="AcpiBridge\AcpiBridge1.sys">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="AcpiBridge\acpibridge1.cat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
+    <Resource Include="Assets\Main_Window\BatterySettings.png" />
+    <Resource Include="Assets\Main_Window\BatterySettings_Selected.png" />
     <Resource Include="Assets\Main_Window\OtherSettings.png" />
+    <Resource Include="Assets\Main_Window\About.png" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\main_icon.png" />
@@ -231,14 +307,52 @@
     <Resource Include="Assets\Page_PerformanceSettings\icon_powersave.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Assets\Page_FanSettings\button.png" />
-    <Resource Include="Assets\Page_FanSettings\middle.png" />
-  </ItemGroup>
-  <ItemGroup>
     <Resource Include="Assets\Main_Window\FanSettings_Selected.png" />
     <Resource Include="Assets\Main_Window\KeyboardSettings_Selected.png" />
     <Resource Include="Assets\Main_Window\OtherSettings_Selected.png" />
     <Resource Include="Assets\Main_Window\PerformanceSettings_Selected.png" />
+    <Resource Include="Assets\Main_Window\Settings.png" />
+    <Resource Include="Assets\Main_Window\Settings_Selected.png" />
+    <Resource Include="Assets\Main_Window\About_Selected.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\OSD\Thirdwave_MicMute_cc40_1.png" />
+    <Resource Include="Assets\OSD\Thirdwave_MicUnmute_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_Fn_lock_disable.png" />
+    <Resource Include="Assets\OSD\osd_Fn_lock_enable.png" />
+    <Resource Include="Assets\OSD\osd_winkey_lock_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_winkey_unlock_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_airplane_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_airplane_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_1_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_2_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_3_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_4_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_high_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_low_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_backlight_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_cameraMic_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_cameraMic_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_camera_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_camera_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_caps_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_caps_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_entetainment2_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_fan_speed_AntiDustRuning_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_fan_speed_Custom_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_fan_speed_MaxQ_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_fan_speed_auto_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_fan_speed_max_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_num_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_num_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_peformance2_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_powerSaving2_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_quiet2_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_scr_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_scr_on_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_touchpad_off_cc40_1.png" />
+    <Resource Include="Assets\OSD\osd_touchpad_on_cc40_1.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
